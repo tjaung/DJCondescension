@@ -1,0 +1,22 @@
+/* Set a fixed width for the track title container */
+.track-title {
+    display: inline-block;
+    max-width: 250px; /* Adjust based on your layout */
+    overflow: hidden;
+  }
+  
+  /* Marquee animation */
+  @keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+  
+  /* Apply marquee effect only if the text is overflowing */
+  .marquee {
+    display: inline-block;
+    animation: marquee 10s linear infinite;
+    white-space: nowrap;
+    will-change: transform;
+    padding-right: 50px; /* Add space to the end of the scrolling text */
+  }
+  
