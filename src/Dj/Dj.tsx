@@ -34,15 +34,16 @@ const Dj = ({ token, setToken }: DjInterface) => {
             const placeholderTrack = {
                 id: "placeholder",
                 name: "DJ Intro",
-                preview_url: placeholderAudioUrl, // Blob URL from generateTextToSpeech
+                uri: placeholderAudioUrl, // Blob URL from generateTextToSpeech
                 album: { images: [{ url: "placeholder-image-url" }] },
                 artists: [{ name: "DJ" }]
             };
+            console.log(placeholderTrack)
             // Step 4: Update state with placeholder and recommendations
             setTracksData({
                 topTracks,
                 allSongs: [],//allSongIds,
-                recommendations: [placeholderTrack]//, ...tracks],
+                recommendations: [placeholderTrack, ...topTracks],
             });
         } catch (error) {
             console.error("Error in fetching data sequence:", error);
@@ -70,7 +71,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
             
             {tracksData.recommendations?.length > 0 && (
                 <>
-                    <MusicPlayer tracks={tracksData.recommendations} onEndOfPlaylist={handleEndOfPlaylist} loading={false} />
+                    <MusicPlayer tracks={tracksData.recommendations} onEndOfPlaylist={handleEndOfPlaylist} loading={false} token={token}/>
                 </>
             )}
         </div>

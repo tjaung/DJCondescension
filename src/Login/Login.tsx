@@ -2,6 +2,11 @@ import React from "react";
 import { loginEndpoint } from "../spotifyAPI";
 
 export const Login = () => {
+  const handleLogin = () => {
+    // Redirect user to the Spotify authorization page
+    window.location.href = loginEndpoint;
+  };
+
   return (
     <div className="login-page">
       <img
@@ -9,9 +14,7 @@ export const Login = () => {
         alt="logo-spotify"
         className="logo"
       />
-      <a href={loginEndpoint}>
-        <div className="login-btn">LOG IN</div>
-      </a>
+      <button onClick={handleLogin} className="login-btn">LOG IN</button>
     </div>
   );
-}
+};
