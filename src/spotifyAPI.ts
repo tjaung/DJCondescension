@@ -8,7 +8,15 @@ const backendBaseURL = "http://localhost:5000"; // Update to match your backend 
 const authEndpoint = "https://accounts.spotify.com/authorize?";
 const clientId = import.meta.env.VITE_CLIENT_ID;
 const redirectUri = import.meta.env.VITE_REDIRECT_URI;
-const scopes = ["user-read-email", "user-read-private", "user-library-read", "playlist-read-private", "user-modify-playback-state","user-read-playback-state", "user-top-read","streaming"];
+const scopes = ["user-read-email", 
+  "user-read-private", 
+  "user-library-read", 
+  "playlist-read-private", 
+  "user-modify-playback-state",
+  "user-read-playback-state",
+   "user-top-read",
+   "user-library-modify",
+   "streaming"];
 
 export const loginEndpoint = `${authEndpoint}client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
   "%20"

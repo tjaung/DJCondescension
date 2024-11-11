@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import SpotifyPlayer from './SpotifyPlayer';
+import CustomSpotifyPlayer from './SpotifyPlayer';
 import Visualizer from '../Visualizer/Visualizer';
 import { fetchTopTracks, fetchAudioFeatures, fetchRecommendations } from '../spotifyAPI';
 import { generateTextToSpeech } from '../../api/generatetts';
@@ -42,9 +42,16 @@ const Dj = ({ token, setToken }: DjInterface) => {
       }));
 
       const topTracks = await fetchTopTracks();
-      let tracks = await fetchRecommendations(topTracks)
-      tracks = await fetchAudioFeatures(tracks);
-    //   tracks = pickRandomNSongs(3, tracks);
+      let tracks
+      //if rate limited use top tracks
+      try{
+        const recs = await fetchRecommendations(topTracks)
+        tracks = await fetchAudioFeatures(recs);
+      } catch (error) {
+        console.error(error)
+        tracks = await fetchAudioFeatures(topTracks);
+        tracks = pickRandomNSongs(6, tracks);
+      }
       console.log(tracks);
       setTracksData({
         topTracks,
@@ -155,7 +162,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
       {/* Spotify Player Component */}
       {tracksData.recommendations.length > 0 && isSessionStarted && !isTtsPlaying && (
-        <SpotifyPlayer
+        <CustomSpotifyPlayer
           token={token}
           uris={tracksData.recommendations.map((track) => track.uri)}
           callback={(trackInfo) => {

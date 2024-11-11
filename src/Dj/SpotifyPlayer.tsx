@@ -12,14 +12,22 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
   const [play, setPlay] = useState(false);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [hasEnded, setHasEnded] = useState(false);
-  
-  // Start playing the first track on component mount
+
   useEffect(() => {
-    if (token && uris.length > 0) {
-      setCurrentTrackIndex(0);
+    // Set play to true when changing to a new track
+    if (uris.length > 0) {
       setPlay(true);
     }
-  }, [token, uris]);
+  }, [currentTrackIndex]);
+
+  const handleTrackEnd = () => {
+    if (currentTrackIndex < uris.length - 1) {
+      setCurrentTrackIndex((prevIndex) => prevIndex + 1);
+    } else {
+      setPlay(false);
+      onEnd();
+    }
+  };
 
   return (
     <div className="fixed bottom-0 left-0 w-full bg-black bg-opacity-80 p-4">
@@ -27,42 +35,43 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
         token={token}
         play={play}
         initialVolume={25}
+        showSaveIcon={true}
         hideAttribution
         uris={[uris[currentTrackIndex]]}
         callback={(state) => {
-          if (state.track) {
+          // Update track info when a new track starts playing
+          if (state.track && state.isPlaying) {
             const trackInfo = {
               name: state.track.name,
               artist: state.track.artists.map((artist) => artist.name).join(', '),
               albumArt: state.track.image,
             };
             callback(trackInfo);
+            setHasEnded(false); // Reset track end flag when a new track starts playing
           }
 
-          // Track ending logic
+          // Handle track ending logic when playback reaches the end
           if (
             state.track &&
             !state.isPlaying &&
-            state.status === 'READY' &&
+            state.progressMs === 0 &&
+            state.position === 0 &&
             !hasEnded
           ) {
-            setHasEnded(true); // Prevent running the logic multiple times
-            setTimeout(() => {
-              // Increment the number of played tracks
-              if (currentTrackIndex < uris.length - 1) {
-                setCurrentTrackIndex((prevIndex) => prevIndex + 1);
-                setPlay(true);
-              } else {
-                // If it is the last track, trigger the `onEnd` function
-                onEnd();
-              }
-              setHasEnded(false); // Allow the logic to run again for the next track
-            }, 500); // Small delay to prevent multiple triggers
+            setHasEnded(true);
+            handleTrackEnd();
+          }
+
+          // Update play/pause state based on the player status
+          if (state.isPlaying) {
+            setPlay(true);
+          } else if (!state.isPlaying && state.status === 'PAUSED') {
+            setPlay(false);
           }
         }}
         styles={{
           activeColor: '#fff',
-          bgColor: '#333',
+          bgColor: 'rgba(25, 20, 20, 0.75)',
           color: '#fff',
           loaderColor: '#fff',
           sliderColor: '#1cb954',
