@@ -11,7 +11,7 @@ interface VisualizerProps {
   audioRef: React.RefObject<HTMLAudioElement>;
   audioContext: React.RefObject<AudioContext | null>;
   isPlaying: boolean;
-  albumImageUrl: string | null; // Add album image URL as a prop
+  albumImageUrl: string | null;
   audioFeatures: {
     tempo: number; // BPM of the current track
     energy: number; // Energy level of the track
@@ -27,7 +27,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
   const hazeMaterialRef = useRef<THREE.PointsMaterial | null>(null);
   const hazeRef = useRef<THREE.Points | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  
+
   const [visColors, setVisColors] = useState({
     primary: { r: 0, g: 0, b: 0 },
     secondary: { r: 0, g: 0, b: 0 },
@@ -42,7 +42,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     u_blue: { type: 'f', value: visColors.tertiary.b },
   });
 
-  // Extract colors from album art
+  // Extract colors from album art or set default colors
   useEffect(() => {
     if (albumImageUrl) {
       const image = new Image();
@@ -64,6 +64,13 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
           setVisColors(colorTheme);
         }
       };
+    } else {
+      const defaultColors = {
+        primary: { r: 0, g: 0, b: 0 },
+        secondary: { r: 0, g: 0, b: 0 },
+        tertiary: { r: 0.3, g: 0.9, b: 0.3 }
+      };
+      setVisColors(defaultColors);
     }
   }, [albumImageUrl]);
 
@@ -122,7 +129,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
       opacity: 0.1,
     });
 
-    hazeMaterialRef.current = hazeMaterial; // Save reference to the material
+    hazeMaterialRef.current = hazeMaterial;
     const hazeParticlesMesh = new THREE.Points(hazeGeometry, hazeMaterial);
     scene.add(hazeParticlesMesh);
     hazeRef.current = hazeParticlesMesh;
@@ -139,22 +146,37 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
 
     // Animation Function
     const clock = new THREE.Clock();
-    const beatInterval = 60 / audioFeatures.tempo; // Time between beats in seconds
-    let lastBeatTime = clock.getElapsedTime(); // Track time of the last beat
+    const beatInterval = 60 / audioFeatures.tempo;
+    let lastBeatTime = clock.getElapsedTime();
 
     function animate() {
       const elapsedTime = clock.getElapsedTime();
 
-      // Check if it's time to trigger a beat-based animation
-      if (elapsedTime - lastBeatTime >= beatInterval) {
-        lastBeatTime = elapsedTime;
+      // Ensure audioRef and audioContext are defined before accessing them
+      if (audioRef?.current && audioContext?.current) {
+        // Use the audio data if available
+        if (!analyserRef.current && audioContext.current && audioRef.current) {
+          const analyser = audioContext.current.createAnalyser();
+          analyser.fftSize = 256;
+          const source = audioContext.current.createMediaElementSource(audioRef.current);
+          source.connect(analyser);
+          source.connect(audioContext.current.destination);
+          analyserRef.current = analyser;
+          dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        }
 
-        // Trigger beat-based animation
-        uniformsRef.current.u_frequency.value = Math.random() * 50 + 50; // Example: randomize frequency on each beat
-
-        // Optional: use energy to determine how strong the effect should be
-        const energyEffect = audioFeatures.energy * 2; // Scale the energy for visual impact
-        uniformsRef.current.u_frequency.value *= energyEffect;
+        if (analyserRef.current && dataArrayRef.current) {
+          analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+          const avgFrequency = dataArrayRef.current.reduce((sum, val) => sum + val, 0) / dataArrayRef.current.length;
+          uniformsRef.current.u_frequency.value = avgFrequency;
+        }
+      } else {
+        // Use beat-based animation as fallback
+        if (elapsedTime - lastBeatTime >= beatInterval) {
+          lastBeatTime = elapsedTime;
+          uniformsRef.current.u_frequency.value = Math.random() * 50 + 50;
+          uniformsRef.current.u_frequency.value *= audioFeatures.energy * 2;
+        }
       }
 
       // Rotate the particle system for the haze effect
@@ -185,9 +207,9 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
       if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
       window.removeEventListener('resize', onResize);
     };
-  }, [audioRef, isPlaying, audioContext, visColors]); // Added `visColors` to dependencies
+  }, [audioRef, isPlaying, audioContext, visColors]);
 
-  // Update colors smoothly whenever the `colors` prop changes
+  // Update colors smoothly whenever `visColors` changes
   useEffect(() => {
     if (sceneRef.current) {
       const { primary } = visColors;
@@ -197,7 +219,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
 
     if (uniformsRef.current) {
       const { tertiary } = visColors;
-      const duration = 0.75; // duration of the transition in seconds
+      const duration = 0.75;
       const start = {
         r: uniformsRef.current.u_red.value,
         g: uniformsRef.current.u_green.value,
@@ -223,7 +245,6 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     }
 
     if (hazeMaterialRef.current) {
-      // Update the particle system color to the tertiary color
       const { secondary } = visColors;
       hazeMaterialRef.current.color = new THREE.Color(secondary.r, secondary.g, secondary.b);
     }

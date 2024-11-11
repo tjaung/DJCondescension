@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import MusicPlayer from './MusicPlayer';
+import Visualizer from '../Visualizer/Visualizer';
 import { fetchTopTracks, fetchRecommendations, fetchAudioFeatures } from '../spotifyAPI';
-import { getOpenAiText } from '../AudioAnalysis/OpenAi';
 import { generateTextToSpeech } from '../../api/generatetts';
 import { placeholder } from './placeholder';
 import { pickRandomNSongs } from '../utils/utils';
-import SpotifyPlayer from './SpotifyPlayer';
+import { getOpenAiText } from '../AudioAnalysis/OpenAi';
 
 interface DjInterface {
     token: string;
@@ -18,40 +18,48 @@ const Dj = ({ token, setToken }: DjInterface) => {
         allSongs: [] as string[],
         recommendations: [] as any[],
     });
-    const [isTtsPlaying, setIsTtsPlaying] = useState(false);
+    const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [isSessionStarted, setIsSessionStarted] = useState(false); // User-triggered session start
+    const [isTtsPlaying, setIsTtsPlaying] = useState(true);
+    const [isTtsStarted, setIsTtsStarted] = useState(false)
+    const [scripts, setScripts] = useState('')
+    const [recentScript, setRecentScript] = useState(null)
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const fetchData = async () => {
         try {
-            // Step 1: Fetch Top Tracks
+            setIsTtsStarted(false);
+            setIsTtsPlaying(true);
+            // Clear existing recommendations
+            setTracksData(prev => ({
+                ...prev,
+                recommendations: []
+            }));
+
             const topTracks = await fetchTopTracks();
-            console.log(topTracks);
-
-            // Step 2: Fetch Recommendations
-            // let tracks = await fetchRecommendations(topTracks);
             let tracks = await fetchAudioFeatures(topTracks);
-            tracks = pickRandomNSongs(3, tracks)
-            // make placeholder for end of playlist
-            const endOfPlaylistHolder = placeholder
-            // Step 3: Generate Placeholder Audio with Text-to-Speech
-            const test = 'This is a test';
-            const placeholderAudioUrl = await generateTextToSpeech(test); // Generate TTS audio URL
+            tracks = pickRandomNSongs(3, tracks);
+            const endOfPlaylistHolder = placeholder;
 
-            // Step 4: Update state with placeholder and recommendations
             setTracksData({
                 topTracks,
                 allSongs: [],
                 recommendations: [...tracks, endOfPlaylistHolder],
             });
-            console.log(tracks)
-            // Step 5: Play the generated TTS
+
+            const test = 'This is a test';
+            // const djScript = await getOpenAiText(tracks)
+            const djVoice = await generateTextToSpeech(test); // Generate TTS audio URL
+            // setRecentScript(djScript)
+            const addNew = scripts + `/n ${test}`;
+            setScripts(addNew);
             if (audioRef.current) {
-                audioRef.current.src = placeholderAudioUrl;
-                setIsTtsPlaying(true);
+                audioRef.current.src = djVoice;
                 audioRef.current.play().catch((error) => {
                     console.error('Error playing audio:', error);
                 });
+                // setRecentScript(null)
             }
         } catch (error) {
             console.error("Error in fetching data sequence:", error);
@@ -63,24 +71,45 @@ const Dj = ({ token, setToken }: DjInterface) => {
     }, [token, isSessionStarted]);
 
     useEffect(() => {
+        const handleAudioStart = () => {
+            console.log("Audio started playing");
+            setIsTtsStarted(true);
+        };
+    
+        const handleAudioEnd = () => {
+            setIsTtsPlaying(false);
+        };
+    
         if (audioRef.current) {
-            // Add event listener for when the audio ends
-            audioRef.current.addEventListener('ended', () => {
-                setIsTtsPlaying(false);
-            });
+            // Add event listeners for play and ended events
+            audioRef.current.addEventListener('play', handleAudioStart);
+            audioRef.current.addEventListener('ended', handleAudioEnd);
         }
-
         return () => {
             if (audioRef.current) {
-                audioRef.current.removeEventListener('ended', () => {
-                    setIsTtsPlaying(false);
-                });
+                audioRef.current.removeEventListener('play', handleAudioStart);
+                audioRef.current.removeEventListener('ended', handleAudioEnd);
             }
         };
     }, []);
 
     const handleEndOfPlaylist = () => {
-        fetchData(); // Re-fetch recommendations and include a new placeholder
+        fetchData(); // Re-fetch new recommendations and clear the current playlist
+        setCurrentTrackIndex(0);
+        setIsPlaying(false)
+    };
+
+    const handleTrackChange = (nextIndex: number) => {
+        setCurrentTrackIndex(nextIndex);
+        setIsPlaying(true); // Automatically play the next track when changing tracks
+    };
+
+    const handlePlayPauseToggle = () => {
+        setIsPlaying((prev) => !prev);
+    };
+
+    const handleStartSession = () => {
+        setIsSessionStarted(true);
     };
 
     const handleLogout = () => {
@@ -88,31 +117,56 @@ const Dj = ({ token, setToken }: DjInterface) => {
         window.localStorage.clear();
     };
 
-    const handleStartSession = () => {
-        setIsSessionStarted(true);
-    };
+    const currentTrack = tracksData.recommendations[currentTrackIndex];
 
     return (
         <div className='flex flex-col align-center'>
             <nav className='flex flex-row p-5 align-center justify-end fixed top-0 left-0 w-full'>
-                <button className="menu-button" onClick={handleLogout}>Log out</button>
+                <button className="menu-button" onClick={() => handleLogout()}>Log out</button>
             </nav>
 
             {/* Start Session Button */}
             {!isSessionStarted && (
                 <div className="flex flex-col items-center justify-center h-screen">
-                    <button className="start-button" onClick={handleStartSession}>
+                    <button className="start-button bg-black bg-opacity-50" onClick={handleStartSession}>
                         Start DJ Session
                     </button>
                 </div>
             )}
-
+            {isTtsStarted === false && (
+                <div className='start-button text-md px-2.5 py-5 rounded'>
+                    <p className='bg-black bg-opacity-50'>Analyzing...</p>
+                </div>
+            )}
             <audio ref={audioRef} style={{ display: 'none' }} />
-            
-            {tracksData.recommendations?.length > 0 && isSessionStarted && !isTtsPlaying && (
-                
-                <MusicPlayer tracks={tracksData.recommendations} onEndOfPlaylist={handleEndOfPlaylist} loading={false} token={token} />
-            )} 
+
+            {/* Visualizer Component */}
+            {currentTrack && !isTtsPlaying ? (
+                <Visualizer
+                    isPlaying={isPlaying}
+                    albumImageUrl={currentTrack.album?.images.length > 0 ? currentTrack.album.images[0].url : null}
+                    audioFeatures={currentTrack.audioFeatures || { tempo: 120, energy: 0.5 }}
+                />
+            ) : (
+                <Visualizer
+                    isPlaying={false}
+                    albumImageUrl={null}
+                    audioFeatures={{ tempo: 30, energy: 1 }}
+                />
+            )}
+
+            {/* Music Player Component */}
+            {tracksData.recommendations.length > 0 && isSessionStarted && !isTtsPlaying && (
+                <MusicPlayer
+                    tracks={tracksData.recommendations}
+                    currentTrackIndex={currentTrackIndex}
+                    isPlaying={isPlaying}
+                    onEndOfPlaylist={handleEndOfPlaylist}
+                    onTrackChange={handleTrackChange}
+                    onPlayPauseToggle={handlePlayPauseToggle}
+                    token={token}
+                />
+            )}
         </div>
     );
 };
