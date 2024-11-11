@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MusicPlayer from './MusicPlayer';
-import { fetchTopTracks, fetchRecommendations } from '../spotifyAPI';
+import { fetchTopTracks, fetchRecommendations, fetchAudioFeatures } from '../spotifyAPI';
 import { getOpenAiText } from '../AudioAnalysis/OpenAi';
 import { generateTextToSpeech } from '../../api/generatetts';
+import { placeholder } from './placeholder';
+import { pickRandomNSongs } from '../utils/utils';
+import SpotifyPlayer from './SpotifyPlayer';
 
 interface DjInterface {
     token: string;
@@ -15,44 +18,66 @@ const Dj = ({ token, setToken }: DjInterface) => {
         allSongs: [] as string[],
         recommendations: [] as any[],
     });
+    const [isTtsPlaying, setIsTtsPlaying] = useState(false);
+    const [isSessionStarted, setIsSessionStarted] = useState(false); // User-triggered session start
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const fetchData = async () => {
         try {
             // Step 1: Fetch Top Tracks
             const topTracks = await fetchTopTracks();
-            console.log(topTracks)
+            console.log(topTracks);
+
             // Step 2: Fetch Recommendations
-            // const tracks = await fetchRecommendations(topTracks);
-            // const allSongIds = tracks.map((track: { id: any }) => track.id);
-            // console.log(tracks)
+            // let tracks = await fetchRecommendations(topTracks);
+            let tracks = await fetchAudioFeatures(topTracks);
+            tracks = pickRandomNSongs(3, tracks)
+            // make placeholder for end of playlist
+            const endOfPlaylistHolder = placeholder
             // Step 3: Generate Placeholder Audio with Text-to-Speech
-            // const djScript = await getOpenAiText(topTracks)//, tracks);
-            // console.log(djScript)
-            const test = 'this is a test'
+            const test = 'This is a test';
             const placeholderAudioUrl = await generateTextToSpeech(test); // Generate TTS audio URL
-            // console.log("Generated Blob URL:", placeholderAudioUrl)
-            const placeholderTrack = {
-                id: "placeholder",
-                name: "DJ Intro",
-                uri: placeholderAudioUrl, // Blob URL from generateTextToSpeech
-                album: { images: [{ url: "placeholder-image-url" }] },
-                artists: [{ name: "DJ" }]
-            };
-            console.log(placeholderTrack)
+
             // Step 4: Update state with placeholder and recommendations
             setTracksData({
                 topTracks,
-                allSongs: [],//allSongIds,
-                recommendations: [placeholderTrack, ...topTracks],
+                allSongs: [],
+                recommendations: [...tracks, endOfPlaylistHolder],
             });
+            console.log(tracks)
+            // Step 5: Play the generated TTS
+            if (audioRef.current) {
+                audioRef.current.src = placeholderAudioUrl;
+                setIsTtsPlaying(true);
+                audioRef.current.play().catch((error) => {
+                    console.error('Error playing audio:', error);
+                });
+            }
         } catch (error) {
             console.error("Error in fetching data sequence:", error);
         }
     };
 
     useEffect(() => {
-        if (token) fetchData();
-    }, [token]);
+        if (token && isSessionStarted) fetchData();
+    }, [token, isSessionStarted]);
+
+    useEffect(() => {
+        if (audioRef.current) {
+            // Add event listener for when the audio ends
+            audioRef.current.addEventListener('ended', () => {
+                setIsTtsPlaying(false);
+            });
+        }
+
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.removeEventListener('ended', () => {
+                    setIsTtsPlaying(false);
+                });
+            }
+        };
+    }, []);
 
     const handleEndOfPlaylist = () => {
         fetchData(); // Re-fetch recommendations and include a new placeholder
@@ -63,17 +88,31 @@ const Dj = ({ token, setToken }: DjInterface) => {
         window.localStorage.clear();
     };
 
+    const handleStartSession = () => {
+        setIsSessionStarted(true);
+    };
+
     return (
         <div className='flex flex-col align-center'>
             <nav className='flex flex-row p-5 align-center justify-end fixed top-0 left-0 w-full'>
                 <button className="menu-button" onClick={handleLogout}>Log out</button>
             </nav>
-            
-            {tracksData.recommendations?.length > 0 && (
-                <>
-                    <MusicPlayer tracks={tracksData.recommendations} onEndOfPlaylist={handleEndOfPlaylist} loading={false} token={token}/>
-                </>
+
+            {/* Start Session Button */}
+            {!isSessionStarted && (
+                <div className="flex flex-col items-center justify-center h-screen">
+                    <button className="start-button" onClick={handleStartSession}>
+                        Start DJ Session
+                    </button>
+                </div>
             )}
+
+            <audio ref={audioRef} style={{ display: 'none' }} />
+            
+            {tracksData.recommendations?.length > 0 && isSessionStarted && !isTtsPlaying && (
+                
+                <MusicPlayer tracks={tracksData.recommendations} onEndOfPlaylist={handleEndOfPlaylist} loading={false} token={token} />
+            )} 
         </div>
     );
 };

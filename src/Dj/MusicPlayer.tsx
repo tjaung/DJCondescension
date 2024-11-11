@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPause, faPlay, faForward, faBackward } from '@fortawesome/free-solid-svg-icons';
+import { faPause, faPlay, faForward, faBackward, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import axios from 'axios';
 import Visualizer from '../Visualizer/Visualizer';
 import { getImageColors, getThreeColors, quantization, rgbToHsl } from '../utils/utils';
 
-library.add(faPause, faPlay, faForward, faBackward);
+library.add(faPause, faPlay, faForward, faBackward, faVolumeHigh);
 
 import './MusicPlayer.css';
 
@@ -30,20 +30,55 @@ interface MusicPlayerProps {
 const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, loading, token }) => {
   const [player, setPlayer] = useState<Spotify.Player | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [isDeviceReady, setIsDeviceReady] = useState(false);
+
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [currentTrack, setCurrentTrack] = useState(tracks[0]);
+  const [currentTrack, setCurrentTrack] = useState(tracks[0] || null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const [volume, setVolume] = useState(50); // Volume control (0-100)
+  const [trackProgress, setTrackProgress] = useState(0); // Track progress in seconds
+  const [trackDuration, setTrackDuration] = useState(0); // Track duration in seconds
+
   const [freeze, setFreeze] = useState(false);
-  const [visColors, setVisColors] = useState({
-    primary: { r: 0, g: 0, b: 0 },
-    secondary: { r: 0, g: 0, b: 0 },
-    tertiary: {r: 0.3, g: 0.9, b: 0.3}
-  });
+  if(currentTrack !== null){
+    console.log(`current track: ${currentTrack.name}, index: ${currentTrackIndex}`)
+  }
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const albumImageUrl = currentTrack?.album?.images?.length > 0 ? currentTrack.album.images[0].url : null;
+
+  const handleVolumeChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(event.target.value, 10);
+    setVolume(newVolume);
+  
+    // Ensure player is ready and device is active
+    if (player && isDeviceReady && deviceId) {
+      try {
+        await player.setVolume(newVolume / 100);
+        console.log(`Volume set to ${newVolume}%`);
+      } catch (error) {
+        console.error('Error setting volume: ', error);
+      }
+    } else {
+      console.warn('Player is not ready or device ID is not set. Cannot change volume.');
+    }
+  };
+  
+
+  const handleProgressChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newPosition = parseInt(event.target.value, 10);
+    setTrackProgress(newPosition);
+    if (player) {
+      try{
+        await player.seek(newPosition * 1000); // Spotify API expects position in milliseconds
+      } catch (error) {
+        console.error('Error scrubbing song: ', error)
+      }
+    }
+  };
 
   // Transfer Playback to the new device
   const transferPlaybackToDevice = async (deviceId: string) => {
@@ -61,31 +96,43 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
           },
         }
       );
-
-      // Start playing the current track after transferring playback
-      playCurrentTrack();
+      console.log('Playback transferred to device:', deviceId);
     } catch (error) {
       console.error('Error transferring playback to new device:', error);
     }
   };
+  
 
   // Play the current track on the player
   const playCurrentTrack = async () => {
-    if (currentTrack && player && deviceId) {
+    if (currentTrack && player && deviceId && isDeviceReady) {
+      console.log(deviceId, isDeviceReady, currentTrack, player)
+      // If the current track is the placeholder, pause and do not play it
+      if (currentTrack.id === 'placeholder') {
+
+        console.log('reached end of playlist, dont play')
+        setIsPlaying(false);
+        player.togglePlay()
+        return;
+      }
       try {
-        await axios.put(
-          `https://api.spotify.com/v1/me/player/play`,
-          {
-            uris: [currentTrack.uri], // Play the selected track
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
+        console.log(currentTrack.uri)
+        // if(player){
+          await axios.put(
+            `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`,
+            {
+              uris: [currentTrack.uri], // Play the selected track
             },
-          }
-        );
-        setIsPlaying(true);
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          setIsPlaying(true);
+          // playCurrentTrack()
+        // }
       } catch (error) {
         console.error('Error playing track:', error);
       }
@@ -107,34 +154,53 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
         volume: 0.1,
       });
 
-      spotifyPlayer.addListener('ready', ({ device_id }) => {
+      spotifyPlayer.addListener('ready', async ({ device_id }:{device_id: string}) => {
         console.log('Ready with Device ID', device_id);
 
         // Set the player and deviceId in the state
         setPlayer(spotifyPlayer);
+        setIsDeviceReady(true)
         setDeviceId(device_id);
 
         // Transfer playback to the new device
-        transferPlaybackToDevice(device_id);
+        await transferPlaybackToDevice(device_id).then(() => {
+          console.log('success')
+        }).catch(error => console.log(error));
       });
 
-      spotifyPlayer.addListener('not_ready', ({ device_id }) => {
+      spotifyPlayer.addListener('not_ready', ({ device_id }:{device_id:string}) => {
         console.log('Device ID has gone offline', device_id);
+        setIsDeviceReady(false)
       });
 
-      spotifyPlayer.addListener('player_state_changed', state => {
+      spotifyPlayer.addListener('player_state_changed', (state) => {
         if (state) {
           setIsPlaying(!state.paused);
-          if (state.paused && state.position === 0 && state.track_window.current_track) {
-            // If the track ends (paused and position is at start), move to the next track
-            nextTrack();
-            console.log(currentTrack)
+          setTrackProgress(state.position / 1000);
+          setTrackDuration(state.duration / 1000);
+  
+          // Directly handle the end of the track
+          if (state.paused && state.position === 0 && currentTrackIndex < tracks.length - 1) {
+            // console.log('next track')
+            const nextIndex = currentTrackIndex + 1;
+  
+            if (nextIndex  == tracks.length) {
+              console.log('End of playlist reached');
+              setIsPlaying(false);
+              onEndOfPlaylist();
+            } else {
+              console.log('Playing next track');
+              setCurrentTrackIndex(nextIndex);
+              setCurrentTrack(tracks[nextIndex]);
+              playCurrentTrack();
+            }
           }
         }
       });
 
       spotifyPlayer.connect().then(success => {
         if (success) {
+          setIsDeviceReady(true)
           console.log('Player connected successfully');
         }
       });
@@ -147,31 +213,6 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
     };
   }, [token]);
 
-  // Extract colors from album art
-  useEffect(() => {
-    if (albumImageUrl) {
-      const image = new Image();
-      image.crossOrigin = "Anonymous";
-      image.src = albumImageUrl;
-
-      image.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
-        const ctx = canvas.getContext('2d');
-
-        if (ctx) {
-          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const colors = getImageColors(imageData);
-          const palette = getThreeColors(quantization(colors, 1));
-          const colorTheme = { primary: palette[0], secondary: palette[1], tertiary: palette[2] };
-          setVisColors(colorTheme);
-        }
-      };
-    }
-  }, [albumImageUrl]);
-
   useEffect(() => {
     if (audioRef.current && tracks.length > 0) {
       audioRef.current.pause();
@@ -180,15 +221,16 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
         audioRef.current.play().catch((error) => console.error("Error playing audio:", error));
       }
     }
-  }, [tracks, currentTrackIndex, isPlaying, loading]);
+  }, [tracks, player, currentTrackIndex, isPlaying, loading]);
 
   const handleTrackEnd = () => {
-    if (currentTrackIndex === tracks.length - 1) {
+    if (currentTrackIndex === tracks.length) {
       setIsPlaying(false);
       setFreeze(true);
+      
       onEndOfPlaylist();
     } else {
-      nextTrack();
+      // nextTrack();
     }
   };
 
@@ -206,24 +248,71 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
         audioRef.current.removeEventListener('ended', handleTrackEnd);
       }
     };
-  }, [currentTrackIndex, tracks]);
+  }, [currentTrackIndex, player, tracks]);
   
+
   useEffect(() => {
     console.log(currentTrack)
-    playCurrentTrack(); // Play track whenever currentTrack changes
-  }, [currentTrack]);
+    if (token && player && currentTrackIndex < tracks.length){
+      console.log('autoplay next', currentTrack, currentTrackIndex)
+      
+      playCurrentTrack(); // Play track whenever currentTrack changes
+    }
+    // else if (token && player && currentTrackIndex == tracks.length) {
+    //   return
+    // }
+  }, [currentTrack, player, token]);
 
+  // music controls
+  // Real-time Track Progress Update
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
+    if (isPlaying) {
+      interval = setInterval(() => {
+        try{
+          if (typeof player.getCurrentState == 'function') {
+            player.getCurrentState().then(state => {
+              if (state) {
+                setTrackProgress(state.position / 1000);
+                setTrackDuration(state.duration / 1000);
+              }
+            })
+          }
+        }  catch(error){
+          console.log(error);
+        }
+        
+      }, 1000); // Update track progress every second
+    } else if (!isPlaying && interval) {
+      clearInterval(interval);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isPlaying, player]);
+
+  
   const playTrack = async () => {
     if (!loading && !freeze && player) {
       setIsPlaying(true);
-      await player.resume();
+      console.log(player)
+      await player.togglePlay().then(() => {
+        console.log('Toggled playback!');
+      });
     }
   };
 
   const pauseTrack = async () => {
     if (player) {
       try {
-        await player.pause(); // Pause playback with Spotify Web Playback SDK
+        console.log(player)
+        await player.togglePlay().then(() => {
+          console.log('Toggled playback!');
+        }); // Pause playback with Spotify Web Playback SDK
         setIsPlaying(false);
       } catch (error) {
         console.error('Error pausing track:', error);
@@ -232,16 +321,23 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
   };
 
   const nextTrack = () => {
-    if (player && !loading && currentTrackIndex < tracks.length - 1) {
+    if (player && !loading) {
       const nextIndex = currentTrackIndex + 1;
-      setCurrentTrackIndex(nextIndex);
-      setCurrentTrack(tracks[nextIndex]);
-    } else {
-      setIsPlaying(false);
-      setFreeze(true);
-      onEndOfPlaylist();
+  
+      if (nextIndex >= tracks.length) {
+        console.log('End of playlist reached');
+        setIsPlaying(false);
+        onEndOfPlaylist();
+      } else {
+        console.log('Playing next track');
+        setCurrentTrackIndex(nextIndex);
+        setCurrentTrack(tracks[nextIndex]);
+        playCurrentTrack();
+      }
     }
   };
+  
+  
 
   const prevTrack = () => {
     if (player && !loading && currentTrackIndex > 0) {
@@ -266,10 +362,14 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
   }
 
   return (
-    <section className='flex flex-col align-center pt-[400px]'>
-      <Visualizer isPlaying={isPlaying} colors={visColors} />
-      <div className='fixed bottom-0 left-0 w-full bg-black'>
-        <div className="grid grid-cols-[120px_1fr] w-full items-center w-[400px] h-[150px] p-2 border rounded-lg gap-4 top-2">
+    <section className='flex flex-col align-center pt-[10px]'>
+      {currentTrack && (
+        <Visualizer isPlaying={isPlaying} albumImageUrl={currentTrack?.album?.images?.length > 0 ? currentTrack.album.images[0].url : null} audioFeatures={currentTrack.audioFeatures} />
+      
+      )}
+      {isDeviceReady && player && tracks && (
+        <div className='fixed bottom-0 left-0 h-[180px] w-full bg-black bg-opacity-50'>
+        <div className="grid grid-cols-[120px_1fr_0.2fr] w-full items-center h-[180px] p-2 border rounded-lg gap-4 top-2">
           {loading ? (
             <p>Loading new playlist...</p>
           ) : (
@@ -307,11 +407,40 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({ tracks, onEndOfPlaylist, load
                     <FontAwesomeIcon icon={faForward} />
                   </button>
                 </div>
+                {/* Track Progress Controller */}
+                <div className="track-progress mt-2 flex flex-col gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max={trackDuration}
+                    value={trackProgress}
+                    onChange={handleProgressChange}
+                  />
+                  <div className="track-time">
+                    {Math.floor(trackProgress / 60)}:{Math.floor(trackProgress % 60).toString().padStart(2, '0')} / 
+                    {Math.floor(trackDuration / 60)}:{Math.floor(trackDuration % 60).toString().padStart(2, '0')}
+                  </div>
+                </div>
               </div>
+              {/* Volume Controller */}
+              <div className="volume-control grid grid-rows-[1fr_4fr] h-full mt-2">
+                  <label className="" htmlFor="volume"><FontAwesomeIcon icon={faVolumeHigh} /></label>
+                  <input
+                    className='-rotate-90 self-center w-[120px]'
+                    type="range"
+                    id="volume"
+                    min="0"
+                    max="100"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                  />
+                </div>
             </>
           )}
         </div>
       </div>
+      )}
+      
     </section>
   );
 };

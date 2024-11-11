@@ -67,9 +67,26 @@ export const fetchRecommendations = async (topTracks: any) => {
     
 };
 
-export const fetchAudioAnalysis = async (songList: any, allSongIds: string[]) => {
+export const fetchAudioFeatures = async (songList: any) => {
+  try {
+    // Get the song IDs
+    const allSongIds = songList.map((track: { id: any }) => track.id);
+
+    // Fetch audio features from Spotify API
     const res = await apiClient.get(`audio-features?ids=${allSongIds.join(',')}`);
     const audioFeatures = res.data.audio_features;
-    const openAiRes = getOpenAiText(songList);
-    return openAiRes;
+
+    // Combine each song with its corresponding audio features
+    const updatedSongList = songList.map((song: any, index: number) => {
+      return {
+        ...song,
+        audioFeatures: audioFeatures[index],
+      };
+    });
+
+    return updatedSongList;
+  } catch (error) {
+    console.error('Error fetching audio features:', error);
+    throw error;
+  }
 };

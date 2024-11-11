@@ -1,38 +1,71 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 import { fragmentshader, vertexshader } from './shaders';
+import { getImageColors, getThreeColors, quantization } from '../utils/utils';
 
 interface VisualizerProps {
   audioRef: React.RefObject<HTMLAudioElement>;
   audioContext: React.RefObject<AudioContext | null>;
   isPlaying: boolean;
-  colors: {
-    primary: { r: number; g: number; b: number };
-    secondary: { r: number; g: number; b: number };
-    tertiary: { r: number; g: number; b: number };
+  albumImageUrl: string | null; // Add album image URL as a prop
+  audioFeatures: {
+    tempo: number; // BPM of the current track
+    energy: number; // Energy level of the track
   };
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlaying, colors }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlaying, albumImageUrl, audioFeatures }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const bloomComposerRef = useRef<EffectComposer | null>(null);
+  const hazeMaterialRef = useRef<THREE.PointsMaterial | null>(null);
+  const hazeRef = useRef<THREE.Points | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  
+  const [visColors, setVisColors] = useState({
+    primary: { r: 0, g: 0, b: 0 },
+    secondary: { r: 0, g: 0, b: 0 },
+    tertiary: { r: 0.3, g: 0.9, b: 0.3 }
+  });
+
   const uniformsRef = useRef({
     u_time: { type: 'f', value: 0.8 },
     u_frequency: { type: 'f', value: 0.8 },
-    u_red: { type: 'f', value: colors.secondary.r },
-    u_green: { type: 'f', value: colors.secondary.g },
-    u_blue: { type: 'f', value: colors.secondary.b },
+    u_red: { type: 'f', value: visColors.tertiary.r },
+    u_green: { type: 'f', value: visColors.tertiary.g },
+    u_blue: { type: 'f', value: visColors.tertiary.b },
   });
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const hazeMaterialRef = useRef<THREE.PointsMaterial | null>(null);
-  const hazeRef = useRef<THREE.Points | null>(null);
+
+  // Extract colors from album art
+  useEffect(() => {
+    if (albumImageUrl) {
+      const image = new Image();
+      image.crossOrigin = 'Anonymous';
+      image.src = albumImageUrl;
+
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const colors = getImageColors(imageData);
+          const palette = getThreeColors(quantization(colors, 1));
+          const colorTheme = { primary: palette[0], secondary: palette[1], tertiary: palette[2] };
+          setVisColors(colorTheme);
+        }
+      };
+    }
+  }, [albumImageUrl]);
 
   useEffect(() => {
     // Initialize Three.js Scene
@@ -83,7 +116,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     hazeGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     const hazeMaterial = new THREE.PointsMaterial({
-      color: new THREE.Color(colors.tertiary.r, colors.tertiary.g, colors.tertiary.b),
+      color: new THREE.Color(visColors.tertiary.r, visColors.tertiary.g, visColors.tertiary.b),
       size: 0.3,
       transparent: true,
       opacity: 0.1,
@@ -96,10 +129,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
 
     // Bloom Effect
     const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 
-        0.5, 
-        0.8, 
-        0.7);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.0, 0.8, 0.7);
     const bloomComposer = new EffectComposer(renderer);
     bloomComposer.addPass(renderScene);
     bloomComposer.addPass(bloomPass);
@@ -109,25 +139,31 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
 
     // Animation Function
     const clock = new THREE.Clock();
+    const beatInterval = 60 / audioFeatures.tempo; // Time between beats in seconds
+    let lastBeatTime = clock.getElapsedTime(); // Track time of the last beat
+
     function animate() {
-      // Update frequency data
-      if (analyserRef.current && dataArrayRef.current) {
-        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+      const elapsedTime = clock.getElapsedTime();
 
-        // Calculate the average frequency
-        const sum = dataArrayRef.current.reduce((acc, value) => acc + value, 0);
-        const averageFrequency = sum / dataArrayRef.current.length;
+      // Check if it's time to trigger a beat-based animation
+      if (elapsedTime - lastBeatTime >= beatInterval) {
+        lastBeatTime = elapsedTime;
 
-        // Set the uniform value
-        uniformsRef.current.u_frequency.value = averageFrequency || 25;
+        // Trigger beat-based animation
+        uniformsRef.current.u_frequency.value = Math.random() * 50 + 50; // Example: randomize frequency on each beat
+
+        // Optional: use energy to determine how strong the effect should be
+        const energyEffect = audioFeatures.energy * 2; // Scale the energy for visual impact
+        uniformsRef.current.u_frequency.value *= energyEffect;
       }
 
-      camera.lookAt(scene.position);
-
-      uniformsRef.current.u_time.value = clock.getElapsedTime();
       // Rotate the particle system for the haze effect
       hazeParticlesMesh.rotation.y += 0.001;
 
+      // Update uniforms for continuous animation
+      uniformsRef.current.u_time.value = elapsedTime;
+
+      // Render the scene
       bloomComposer.render();
       requestAnimationFrame(animate);
     }
@@ -149,25 +185,25 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
       if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
       window.removeEventListener('resize', onResize);
     };
-  }, [audioRef, isPlaying, audioContext]);
+  }, [audioRef, isPlaying, audioContext, visColors]); // Added `visColors` to dependencies
 
   // Update colors smoothly whenever the `colors` prop changes
   useEffect(() => {
     if (sceneRef.current) {
-      const { primary } = colors;
+      const { primary } = visColors;
       const backgroundColor = new THREE.Color(primary.r, primary.g, primary.b);
       sceneRef.current.background = backgroundColor;
     }
 
     if (uniformsRef.current) {
-      const { secondary } = colors;
+      const { tertiary } = visColors;
       const duration = 0.75; // duration of the transition in seconds
       const start = {
         r: uniformsRef.current.u_red.value,
         g: uniformsRef.current.u_green.value,
         b: uniformsRef.current.u_blue.value,
       };
-      const end = { r: secondary.r, g: secondary.g, b: secondary.b };
+      const end = { r: tertiary.r, g: tertiary.g, b: tertiary.b };
       let startTime: number | null = null;
 
       const smoothTransition = (time: number) => {
@@ -188,10 +224,10 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
 
     if (hazeMaterialRef.current) {
       // Update the particle system color to the tertiary color
-      const { tertiary } = colors;
-      hazeMaterialRef.current.color = new THREE.Color(tertiary.r, tertiary.g, tertiary.b);
+      const { secondary } = visColors;
+      hazeMaterialRef.current.color = new THREE.Color(secondary.r, secondary.g, secondary.b);
     }
-  }, [colors]);
+  }, [visColors]);
 
   return (
     <div
