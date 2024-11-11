@@ -44,7 +44,7 @@ const primer = `
   const params: OpenAI.Chat.ChatCompletionCreateParams = {
     messages: [
       { role: 'system', content: primer },
-      { role: 'user', content: JSON.stringify(songListInfo) } // Convert to string
+      { role: 'user', content: JSON.stringify(songListInfo.shift()) } // Convert to string
     ],
     model: 'gpt-4',
   };
