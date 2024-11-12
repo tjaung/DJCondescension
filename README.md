@@ -1,50 +1,82 @@
-# React + TypeScript + Vite
+# DJ Condescension - Your Personalized Music Experience
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Welcome to **DJ Condescension**, a Spotify-powered application that serves you the best tracks based on your music taste—with a twist. Unlike other playlists, our sarcastic DJ gives you a personalized, condescending analysis of your musical choices. Ready to hear what you don't want to hear about yourself?
 
-Currently, two official plugins are available:
+## Features
+- **Personalized Music Recommendations**: Uses your Spotify history to provide tailored song recommendations.
+- **Judgemental DJ Commentary**: Your musical tastes analyzed and critiqued with condescending commentary.
+- **Full Integration with Spotify**: Login with your Spotify premium account and enjoy seamless audio playback.
+- **Custom Visualizer**: Enjoy a dynamic music visualizer while listening to your favorite tracks.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Getting Started
 
-## Expanding the ESLint configuration
+If you want to run **DJ Condescension** locally:
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+### Prerequisites
+- Node.js (v16+)
+- npm (v7+) or Yarn
+- Spotify Premium Account
+- Open AI api key
+- Eleven Labs api key
 
-- Configure the top-level `parserOptions` property like this:
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-github-profile/dj-condescension.git
+   ```
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+2. Navigate to the project directory:
+   ```bash
+   cd dj-condescension
+   ```
+
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+4. Create a `.env` file in the root directory to store your environment variables. Include the following:
+   ```env
+   VITE_CLIENT_ID=your_spotify_client_id
+   VITE_CLIENT_SECRET=your_spotify_client_secret
+   VITE_REDIRECT_URI=http://localhost:3000/callback
+   VITE_OPENAI_KEY=your_openai_api_key
+   VITE_ELEVEN_LABS_API_KEY=your_eleven_labs_api_key
+   ```
+
+### Running the Application
+To start the development server:
+```bash
+npm run dev
 ```
+The app will be available at `http://localhost:5172`.
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+### Running Tests
+To run the test suite, use: tests depreciated
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+## Directory Structure
+- **src/**: Contains all the main source code for the app, including components, utilities, and API calls.
+- **tests/**: depreciated
+- **public/**: Static files such as index.html and images.
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+## Key Technologies
+- **React**: Frontend framework for building UI components.
+- **Spotify Web API**: Used to fetch user data, song recommendations, and control playback.
+- **OpenAI API**: Provides scripts for dj commentary based on your music tastes.
+- **Tailwind CSS**: CSS framework used for responsive UI design.
+
+## Contributing
+Feel free to contribute! Please create a new branch for your feature or bug fix, and submit a pull request.
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+- **Spotify** for providing the API and resources.
+- **OpenAI** for providing the analysis and text generation features.
+- **ElevenLabs** for providing the ai voice readings
+
+## Contact
+If you have any questions or suggestions, please feel free to open an issue or reach out to me on [GitHub](https://github.com/tjaung).
+
+**Happy Listening!**
