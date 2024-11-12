@@ -30,7 +30,7 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
   };
 
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-black bg-opacity-80 p-4">
+    <div className="fixed bottom-0 left-0 w-full bg-black bg-opacity-100 p-4">
       <SpotifyPlayer
         token={token}
         play={play}
