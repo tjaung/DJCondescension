@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { setClientToken } from "../spotifyAPI";
+import { setClientToken } from "../api/spotifyAPI";
 import {Login} from "../Login/Login";
 import Dj from "../Dj/Dj";
 

@@ -47,29 +47,31 @@ export const getImageColors = (imageData: ImageData) => {
   };
 
   // Function to get the dominant colors
-export const getDominantColors = (imageData, k = 3) => {
-  // Step 1: Extract RGB values
-  const rgbValues = getImageColors(imageData);
-
-  // Step 2: Prepare data for clustering (each entry should be [r, g, b])
-  const data = rgbValues.map(rgb => [rgb.r, rgb.g, rgb.b]);
-
-  // Step 3: Run K-means clustering
-  const { centroids } = kmeans(data, k);
-
-  // Step 4: Convert the centroids to RGB values (rounding to integer)
-  const dominantColors = centroids.map(centroid => {
-    return {
-      r: normalizeRGB(Math.round(centroid[0])),
-      g: normalizeRGB(Math.round(centroid[1])),
-      b: normalizeRGB(Math.round(centroid[2]))
-    };
-  });
-
-
-  // Step 5: Return the dominant colors
-  return dominantColors;
-};
+  export const getDominantColors = (imageData, k = 3) => {
+    // Step 1: Extract RGB values
+    const rgbValues = getImageColors(imageData);
+  
+    // Step 2: Prepare data for clustering (each entry should be [r, g, b])
+    const data = rgbValues.map(rgb => [rgb.r, rgb.g, rgb.b]);
+  
+    // Step 3: Run K-means clustering (use k-means++ initialization for better results)
+    const { centroids } = kmeans(data, k, true); // true for k-means++ initialization
+  
+    // Step 4: Convert the centroids to RGB values (rounding to integer), darkening by a percentage
+    const darkeningPerc = 0.9 // reduce by 10%
+    let dominantColors = centroids.map(centroid => {
+      return {
+        r: normalizeRGB(Math.round(centroid[0])) * darkeningPerc,
+        g: normalizeRGB(Math.round(centroid[1])) * darkeningPerc,
+        b: normalizeRGB(Math.round(centroid[2]) * darkeningPerc)
+      };
+    });
+    
+    // sort by brightness
+    const out = sortByBrightness(dominantColors)
+    return out;
+  };
+  
 
   const findBiggestColorRange = (rgbValues) => {
     let rMin = Number.MAX_VALUE;
@@ -164,7 +166,7 @@ export const rgbToHsl = (r, g, b) => {
     return [ h, s, l ];
   }
 
-  export const getThreeColors = (arr) => {
+  export const sortByBrightness = (arr) => {
     let lightnessSort = [];
     for (let i = 0; i < arr.length; i++) {
       const hsl = [rgbToHsl(arr[i].r, arr[i].g, arr[i].b)[2], arr[i]];
@@ -181,19 +183,7 @@ export const rgbToHsl = (r, g, b) => {
     const last = lightnessSort[arr.length - 1][1];
     const choices = [first, mid, last];
   
-    // Reduce brightness if any of the RGB values are greater than the threshold
-    const brightnessThreshold = 0.75; // Define the threshold for brightness
-    const brightnessReductionFactor = 0.8; // Define the reduction factor for brightness
-  
-    for (let color of choices) {
-      for (let value in color) {
-        if (color[value] > brightnessThreshold) {
-          color[value] *= brightnessReductionFactor;
-        }
-      }
-    }
-  
-    return [first, mid, last];
+    return choices;
   };
   
 

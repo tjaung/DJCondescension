@@ -1,6 +1,6 @@
 export const generateTextToSpeech = async (text) => {
     try {
-        const response = await fetch('/api/generateTTS', {
+        const response = await fetch('https://dj-condescension-server.vercel.app/api/generateTTS', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text }),

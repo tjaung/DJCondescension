@@ -21,12 +21,9 @@ export const clusterSongs = (songList, k = 3) => {
     );
 
     // randomly select one of the clusters
-    let chosenSongGroup = pickRandomNSongs(1, clusterTrackIds)
+    let [chosenSongGroup] = pickRandomNSongs(1, clusterTrackIds)
     // make sure its length is 5 or less
-    if(chosenSongGroup.length > 5) {
-        const shortenedArray = chosenSongGroup.slice(0, 5);
-        return shortenedArray
-    }
+    if(chosenSongGroup.length > 5) chosenSongGroup = chosenSongGroup.slice(0, 5);
     return chosenSongGroup
 
     // Output cluster information

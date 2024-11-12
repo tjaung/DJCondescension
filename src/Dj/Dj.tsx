@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import CustomSpotifyPlayer from './SpotifyPlayer';
 import Visualizer from '../Visualizer/Visualizer';
-import { fetchTopTracks, fetchAudioFeatures, fetchRecommendations } from '../spotifyAPI';
-import { generateTextToSpeech } from '../../api/generatetts';
+import { fetchTopTracks, fetchAudioFeatures, fetchRecommendations } from '../api/spotifyAPI';
+import { generateTextToSpeech } from '../api/generatetts';
 import { pickRandomNSongs } from '../utils/utils';
 import { getOpenAiText } from '../AudioAnalysis/OpenAi';
 

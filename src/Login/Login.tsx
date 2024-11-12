@@ -1,5 +1,5 @@
 import React from "react";
-import { loginEndpoint } from "../spotifyAPI";
+import { loginEndpoint } from "../api/spotifyAPI";
 
 import '../App.css'
 

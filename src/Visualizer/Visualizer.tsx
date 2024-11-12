@@ -73,7 +73,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
         if (ctx) {
           ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const palette = getDominantColors(imageData, 3)
+          const palette = getDominantColors(imageData, 5)
           const colorTheme = { primary: palette[0], secondary: palette[1], tertiary: palette[2] };
           setVisColors(colorTheme);
         }
@@ -165,10 +165,10 @@ const Visualizer: React.FC<VisualizerProps> = ({
     const hazeMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(1, 1, 1),
       metalness: 0.7,
-      roughness: 0.3,
+      roughness: 0.5,
       emissive: new THREE.Color(visColors.secondary.r, visColors.secondary.g, visColors.secondary.b),
-      emissiveIntensity: 0.6,
-      transparent: true,
+      emissiveIntensity: 0.35,
+      // transparent: true,
       opacity: 0.5,
     });
 
@@ -199,7 +199,8 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
     // Bloom Effect
     const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.4, 0.4);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 
+    0.25, 0.4, 0.4);
     const bloomComposer = new EffectComposer(renderer);
     bloomComposer.addPass(renderScene);
     bloomComposer.addPass(bloomPass);

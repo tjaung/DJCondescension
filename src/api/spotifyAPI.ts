@@ -1,7 +1,7 @@
 import axios from "axios";
-import { getOpenAiText } from './AudioAnalysis/OpenAi';
-import { getRandomNumberRange, pickRandomNSongs } from './utils/utils';
-import { clusterSongs } from "./AudioAnalysis/clusterSongs";
+import { getOpenAiText } from '../AudioAnalysis/OpenAi';
+import { getRandomNumberRange, pickRandomNSongs } from '../utils/utils';
+import { clusterSongs } from "../AudioAnalysis/clusterSongs";
 
 // Update the base URL to point to your backend server
 const backendBaseURL = "http://localhost:5000"; // Update to match your backend server's URL
@@ -63,9 +63,8 @@ export const fetchRecommendations = async (topTracks: any) => {
   let clusters
   try{
     const res = await fetchAudioFeatures(topTracks)
-    console.log('top tracks with features ', res)
     clusters = clusterSongs(res, 10)
-    console.log(clusters)
+    if(clusters.length > 5) clusters = clusters.slice(0, 5);
   } 
   catch(error) {
     clusters = pickRandomNSongs(5, topTracks)
