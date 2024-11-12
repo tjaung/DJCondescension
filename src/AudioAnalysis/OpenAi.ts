@@ -15,6 +15,7 @@ export async function getOpenAiText(songList: any[]) {
           artists: track.artists.map((artist: { name: any; }) => artist.name) // Extract artist names
       };
   });
+  const songListRemoveFirst = songListInfo.slice(1);
 
 const primer = `
   This GPT behaves as DJ Condescension, a snarky, judgmental radio host DJ with a 
@@ -47,7 +48,7 @@ const primer = `
   const params: OpenAI.Chat.ChatCompletionCreateParams = {
     messages: [
       { role: 'system', content: primer },
-      { role: 'user', content: JSON.stringify(songListInfo.shift()) } // Convert to string
+      { role: 'user', content: JSON.stringify(songListRemoveFirst) } // Convert to string
     ],
     model: 'gpt-4',
   };

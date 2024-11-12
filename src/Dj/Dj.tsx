@@ -23,7 +23,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
   const [showVisualizer, setShowVisualizer] = useState(false);
 
   const [isTtsPlaying, setIsTtsPlaying] = useState(true);
-  const [isTtsStarted, setIsTtsStarted] = useState(false);
+  const [isTtsStarted, setIsTtsStarted] = useState(true);
   const [scripts, setScripts] = useState('');
   const [currentTrack, setCurrentTrack] = useState<{
     name: string;
@@ -54,7 +54,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
         tracks = await fetchAudioFeatures(topTracks);
         tracks = pickRandomNSongs(6, tracks);
       }
-
+      // console.log(tracks.map(track => track.name))
       setTracksData({
         topTracks,
         allSongs: [],

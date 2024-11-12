@@ -6,7 +6,7 @@ interface SpotifyPlayerProps {
   uris: string[];
   callback: (trackInfo: {
     audioFeatures: { tempo: number; energy: number; }; name: string; artist: string; albumArt: string 
-}) => void;
+  }) => void;
   onEnd: () => void;
 }
 
@@ -22,6 +22,13 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
     }
   }, [currentTrackIndex]);
 
+  useEffect(() => {
+    // Autoplay only if there was a user interaction
+    if (uris.length > 0) {
+      setPlay(true);
+    }
+  }, [uris]);
+
   const handleTrackEnd = () => {
     if (currentTrackIndex < uris.length - 1) {
       setCurrentTrackIndex((prevIndex) => prevIndex + 1);
@@ -36,12 +43,11 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
       <SpotifyPlayer
         token={token}
         play={play}
-        initialVolume={25}
+        initialVolume={50}
         showSaveIcon={true}
         hideAttribution
         uris={[uris[currentTrackIndex]]}
         callback={(state) => {
-          // Update track info when a new track starts playing
           if (state.track && state.isPlaying) {
             const trackInfo = {
               name: state.track.name,
@@ -57,7 +63,6 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
           if (
             state.track &&
             !state.isPlaying &&
-            state.progressMs === 0 &&
             state.position === 0 &&
             !hasEnded
           ) {
@@ -67,9 +72,13 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
 
           // Update play/pause state based on the player status
           if (state.isPlaying) {
-            setPlay(true);
-          } else if (!state.isPlaying) {
-            setPlay(false);
+            if (!play) {
+              setPlay(true);
+            }
+          } else {
+            if (play && !hasEnded) {
+              setPlay(false);
+            }
           }
         }}
         styles={{
