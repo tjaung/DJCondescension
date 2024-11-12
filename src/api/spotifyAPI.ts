@@ -7,8 +7,8 @@ import { clusterSongs } from "../AudioAnalysis/clusterSongs";
 const backendBaseURL = "http://localhost:5000"; // Update to match your backend server's URL
 
 const authEndpoint = "https://accounts.spotify.com/authorize?";
-const clientId = import.meta.env.CLIENT_ID;
-const redirectUri = import.meta.env.REDIRECT_URI;
+const clientId = import.meta.env.VITE_CLIENT_ID;
+const redirectUri = import.meta.env.VITE_REDIRECT_URI;
 const scopes = ["user-read-email", 
   "user-read-private", 
   "user-library-read", 

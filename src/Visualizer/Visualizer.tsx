@@ -340,6 +340,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
     if (hazeRef.current) {
       const { secondary } = visColors;
       hazeRef.current.forEach((sphere) => {
+        //@ts-ignore
         sphere.material.color = new THREE.Color(
           secondary.r + 0.1,
           secondary.g + 0.1,

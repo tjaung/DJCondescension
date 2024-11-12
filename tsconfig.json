@@ -3,6 +3,7 @@
     "allowJs": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
+    "module": "es2022",
     "skipLibCheck": true,
     "strict": false,
     "forceConsistentCasingInFileNames": true,

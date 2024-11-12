@@ -194,7 +194,8 @@ const Dj = ({ token, setToken }: DjInterface) => {
               name: trackInfo.name,
               artist: trackInfo.artist,
               albumArt: trackInfo.albumArt,
-              audioFeatures: trackInfo.audioFeatures || { tempo: 0, energy: 0.1 },
+              //@ts-ignore
+              audioFeatures: trackInfo.audioFeatures! || { tempo: 0, energy: 0.1 },
             });
           }}
           onEnd={handleEndOfPlaylist}

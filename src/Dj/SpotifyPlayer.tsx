@@ -4,7 +4,9 @@ import SpotifyPlayer from 'react-spotify-web-playback';
 interface SpotifyPlayerProps {
   token: string;
   uris: string[];
-  callback: (trackInfo: { name: string; artist: string; albumArt: string }) => void;
+  callback: (trackInfo: {
+    audioFeatures: { tempo: number; energy: number; }; name: string; artist: string; albumArt: string 
+}) => void;
   onEnd: () => void;
 }
 
@@ -46,6 +48,7 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
               artist: state.track.artists.map((artist) => artist.name).join(', '),
               albumArt: state.track.image,
             };
+            //@ts-ignore
             callback(trackInfo);
             setHasEnded(false); // Reset track end flag when a new track starts playing
           }
@@ -65,7 +68,7 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
           // Update play/pause state based on the player status
           if (state.isPlaying) {
             setPlay(true);
-          } else if (!state.isPlaying && state.status === 'PAUSED') {
+          } else if (!state.isPlaying) {
             setPlay(false);
           }
         }}

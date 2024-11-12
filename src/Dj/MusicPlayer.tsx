@@ -133,7 +133,7 @@ const Player: React.FC<PlayerProps> = ({ token, uris }) => {
           if (state.track) {
             setTrackInfo({
               name: state.track.name,
-              artist: state.track.artist.name,
+              artist: state.track.artists.map(artist => artist.name).join(', '),
               albumArt: state.track.image,
             });
           }

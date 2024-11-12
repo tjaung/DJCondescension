@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
 const client = new OpenAI({
-  apiKey: import.meta.env.OPENAI_KEY, // This is the default and can be omitted
+  apiKey: import.meta.env.VITE_OPENAI_KEY, // This is the default and can be omitted
   dangerouslyAllowBrowser: true
 });
 //https://chatgpt.com/g/g-0ua85Wn0f-dj-condescension
