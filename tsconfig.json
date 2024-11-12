@@ -3,14 +3,14 @@
     "allowJs": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "module": "esnext",
+    "module": "es2022",
     "skipLibCheck": true,
     "strict": false,
     "forceConsistentCasingInFileNames": true,
     "target": "es6",
     "lib": ["dom", "es2015", "esnext"],
-    "types": ["node","three"],
-    "jsx": "react-jsx"
+    "types": ["three"],
+    "jsx": "react-jsx" // Use "react-jsx" for React 17+ or "react" for older versions
   },
   "include": ["src/**/*", "src/api/spotifyAPI.ts"],
   "exclude": ["node_modules"]

@@ -1,10 +1,14 @@
 import axios from "axios";
+import { getOpenAiText } from '../AudioAnalysis/OpenAi';
 import { getRandomNumberRange, pickRandomNSongs } from '../utils/utils';
 import { clusterSongs } from "../AudioAnalysis/clusterSongs";
 
+// Update the base URL to point to your backend server
+const backendBaseURL = "http://localhost:5000"; // Update to match your backend server's URL
+
 const authEndpoint = "https://accounts.spotify.com/authorize?";
-const clientId = process.env.VITE_CLIENT_ID;
-const redirectUri = process.env.VITE_REDIRECT_URI;
+const clientId = import.meta.env.VITE_CLIENT_ID;
+const redirectUri = import.meta.env.VITE_REDIRECT_URI;
 const scopes = ["user-read-email", 
   "user-read-private", 
   "user-library-read", 
