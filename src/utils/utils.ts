@@ -1,3 +1,5 @@
+import kmeans from "./kmeans";
+
 export const pickRandomNSongs = (n: number, arr: any[]) => {
     const out = [];
     const copyArr = [...arr];
@@ -43,6 +45,31 @@ export const getImageColors = (imageData: ImageData) => {
     }
     return rgbValues
   };
+
+  // Function to get the dominant colors
+export const getDominantColors = (imageData, k = 3) => {
+  // Step 1: Extract RGB values
+  const rgbValues = getImageColors(imageData);
+
+  // Step 2: Prepare data for clustering (each entry should be [r, g, b])
+  const data = rgbValues.map(rgb => [rgb.r, rgb.g, rgb.b]);
+
+  // Step 3: Run K-means clustering
+  const { centroids } = kmeans(data, k);
+
+  // Step 4: Convert the centroids to RGB values (rounding to integer)
+  const dominantColors = centroids.map(centroid => {
+    return {
+      r: normalizeRGB(Math.round(centroid[0])),
+      g: normalizeRGB(Math.round(centroid[1])),
+      b: normalizeRGB(Math.round(centroid[2]))
+    };
+  });
+
+
+  // Step 5: Return the dominant colors
+  return dominantColors;
+};
 
   const findBiggestColorRange = (rgbValues) => {
     let rMin = Number.MAX_VALUE;
@@ -137,21 +164,38 @@ export const rgbToHsl = (r, g, b) => {
     return [ h, s, l ];
   }
 
-export const getThreeColors = (arr) => {
-  let lightnessSort = []
-  for(let i=0; i < arr.length; i++){
-    const hsl = [rgbToHsl(arr[i].r, arr[i].g, arr[i].b)[2], arr[i] ]
-    lightnessSort.push(hsl)
-  }
-
-  lightnessSort.sort(sortByHSL)
-
-  const midpoint = Math.round(lightnessSort.length / 2)
-  const first = lightnessSort[0][1]
-  const mid = lightnessSort[midpoint][1]
-  const last = lightnessSort[arr.length - 1][1]
-  return [first, mid, last]
-}
+  export const getThreeColors = (arr) => {
+    let lightnessSort = [];
+    for (let i = 0; i < arr.length; i++) {
+      const hsl = [rgbToHsl(arr[i].r, arr[i].g, arr[i].b)[2], arr[i]];
+      lightnessSort.push(hsl);
+    }
+  
+    // Sort colors based on lightness (HSL)
+    lightnessSort.sort(sortByHSL);
+  
+    // Get first, midpoint, and last colors
+    const midpoint = Math.round(lightnessSort.length / 2);
+    const first = lightnessSort[0][1];
+    const mid = lightnessSort[midpoint][1];
+    const last = lightnessSort[arr.length - 1][1];
+    const choices = [first, mid, last];
+  
+    // Reduce brightness if any of the RGB values are greater than the threshold
+    const brightnessThreshold = 0.75; // Define the threshold for brightness
+    const brightnessReductionFactor = 0.8; // Define the reduction factor for brightness
+  
+    for (let color of choices) {
+      for (let value in color) {
+        if (color[value] > brightnessThreshold) {
+          color[value] *= brightnessReductionFactor;
+        }
+      }
+    }
+  
+    return [first, mid, last];
+  };
+  
 
 function sortByHSL(a, b) {
   return a[0] - b[0];

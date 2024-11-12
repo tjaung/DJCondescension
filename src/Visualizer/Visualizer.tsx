@@ -5,7 +5,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 import { fragmentshader, vertexshader } from './shaders';
-import { getImageColors, getThreeColors, quantization } from '../utils/utils';
+import { getDominantColors } from '../utils/utils';
+
 
 interface VisualizerProps {
   audioRef: React.RefObject<HTMLAudioElement>;
@@ -13,26 +14,38 @@ interface VisualizerProps {
   isPlaying: boolean;
   albumImageUrl: string | null;
   audioFeatures: {
-    tempo: number; // BPM of the current track
-    energy: number; // Energy level of the track
+    tempo: number;
+    energy: number;
   };
+  isCurrentTrackAvailable: boolean;
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlaying, albumImageUrl, audioFeatures }) => {
+const Visualizer: React.FC<VisualizerProps> = ({
+  audioRef,
+  audioContext,
+  isPlaying,
+  albumImageUrl,
+  audioFeatures,
+  isCurrentTrackAvailable
+}) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const bloomComposerRef = useRef<EffectComposer | null>(null);
-  const hazeMaterialRef = useRef<THREE.PointsMaterial | null>(null);
-  const hazeRef = useRef<THREE.Points | null>(null);
+  const hazeRef = useRef<THREE.Mesh[] | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
 
   const [visColors, setVisColors] = useState({
     primary: { r: 0, g: 0, b: 0 },
     secondary: { r: 0, g: 0, b: 0 },
-    tertiary: { r: 0.3, g: 0.9, b: 0.3 }
+    tertiary: { r: 0.3, g: 0.9, b: 0.3 },
   });
+  const isCurrentTrackAvailableRef = useRef(!!isCurrentTrackAvailable);
+
+  useEffect(() => {
+    isCurrentTrackAvailableRef.current = !!isCurrentTrackAvailable;
+  }, [isCurrentTrackAvailable]);
 
   const uniformsRef = useRef({
     u_time: { type: 'f', value: 0.8 },
@@ -41,6 +54,8 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     u_green: { type: 'f', value: visColors.tertiary.g },
     u_blue: { type: 'f', value: visColors.tertiary.b },
   });
+
+  const baseFrequency = 5; // Base frequency value for default animation
 
   // Extract colors from album art or set default colors
   useEffect(() => {
@@ -58,8 +73,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
         if (ctx) {
           ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const colors = getImageColors(imageData);
-          const palette = getThreeColors(quantization(colors, 1));
+          const palette = getDominantColors(imageData, 3)
           const colorTheme = { primary: palette[0], secondary: palette[1], tertiary: palette[2] };
           setVisColors(colorTheme);
         }
@@ -68,16 +82,50 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
       const defaultColors = {
         primary: { r: 0, g: 0, b: 0 },
         secondary: { r: 0, g: 0, b: 0 },
-        tertiary: { r: 0.3, g: 0.9, b: 0.3 }
+        tertiary: { r: 0.3, g: 0.9, b: 0.3 },
       };
       setVisColors(defaultColors);
     }
   }, [albumImageUrl]);
 
   useEffect(() => {
+    // Setup Analyser when audioContext and audioRef are ready
+    const setupAnalyser = () => {
+      try {
+        if (audioContext.current && audioRef.current && !analyserRef.current) {
+          const analyser = audioContext.current.createAnalyser();
+          analyser.fftSize = 256;
+          const source = audioContext.current.createMediaElementSource(audioRef.current);
+          source.connect(analyser);
+          source.connect(audioContext.current.destination);
+          analyserRef.current = analyser;
+          dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        }
+      } catch (error) {
+        console.error('Error setting up analyser', error);
+        // Reset analyser if audioRef or audioContext becomes unavailable
+        analyserRef.current = null;
+        dataArrayRef.current = null;
+      }
+    };
+
+    setupAnalyser();
+
+    // Monitor changes in audioRef and audioContext
+    const intervalId = setInterval(() => {
+      setupAnalyser();
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [audioContext, audioRef]);
+
+  useEffect(() => {
     // Initialize Three.js Scene
     const scene = new THREE.Scene();
     sceneRef.current = scene;
+
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, -4, 10);
     camera.lookAt(0, 0, 0);
@@ -87,6 +135,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     if (mountRef.current) mountRef.current.appendChild(renderer.domElement);
 
+    // Visualizer Ball
     const group = new THREE.Group();
     const geometry = new THREE.IcosahedronGeometry(2.6, 30);
 
@@ -111,32 +160,46 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     spotLight.castShadow = true;
     scene.add(spotLight);
 
-    // Particle System for Haze
-    const hazeGeometry = new THREE.BufferGeometry();
-    const hazeParticles = 500;
-    const positions = new Float32Array(hazeParticles * 3);
-    for (let i = 0; i < hazeParticles; i++) {
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 20; // x
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 20; // y
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 20; // z
-    }
-    hazeGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    const hazeMaterial = new THREE.PointsMaterial({
-      color: new THREE.Color(visColors.tertiary.r, visColors.tertiary.g, visColors.tertiary.b),
-      size: 0.3,
+    // Particle System for Haze as Spheres
+    const hazeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const hazeMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(1, 1, 1),
+      metalness: 0.7,
+      roughness: 0.3,
+      emissive: new THREE.Color(visColors.secondary.r, visColors.secondary.g, visColors.secondary.b),
+      emissiveIntensity: 0.6,
       transparent: true,
-      opacity: 0.1,
+      opacity: 0.5,
     });
 
-    hazeMaterialRef.current = hazeMaterial;
-    const hazeParticlesMesh = new THREE.Points(hazeGeometry, hazeMaterial);
-    scene.add(hazeParticlesMesh);
-    hazeRef.current = hazeParticlesMesh;
+    const hazeParticles = 200;
+    const hazeMeshes: THREE.Mesh[] = [];
+    const velocities: THREE.Vector3[] = [];
+
+    for (let i = 0; i < hazeParticles; i++) {
+      const sphere = new THREE.Mesh(hazeGeometry, hazeMaterial);
+      sphere.position.set(
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 20
+      );
+
+      // Random velocity for each particle
+      const velocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.02,
+        (Math.random() - 0.5) * 0.02,
+        (Math.random() - 0.5) * 0.02
+      );
+
+      hazeMeshes.push(sphere);
+      velocities.push(velocity);
+      scene.add(sphere);
+    }
+    hazeRef.current = hazeMeshes;
 
     // Bloom Effect
     const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.0, 0.8, 0.7);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.4, 0.4);
     const bloomComposer = new EffectComposer(renderer);
     bloomComposer.addPass(renderScene);
     bloomComposer.addPass(bloomPass);
@@ -149,46 +212,69 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     const beatInterval = 60 / audioFeatures.tempo;
     let lastBeatTime = clock.getElapsedTime();
 
+    function updateFrequencyData() {
+      if (analyserRef.current && dataArrayRef.current) {
+        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+        const avgFrequency = dataArrayRef.current.reduce((sum, val) => sum + val, 0) / dataArrayRef.current.length;
+
+        if (avgFrequency > 0) {
+          uniformsRef.current.u_frequency.value = avgFrequency;
+        } else {
+          uniformsRef.current.u_frequency.value = baseFrequency;
+        }
+      }
+    }
+
+    function handleBeatAnimation(elapsedTime: number) {
+      if (elapsedTime - lastBeatTime >= beatInterval) {
+        lastBeatTime = elapsedTime;
+        uniformsRef.current.u_frequency.value = Math.random() * 50 + 50;
+        uniformsRef.current.u_frequency.value *= audioFeatures.energy * 2;
+      }
+    }
+
+    function moveHazeParticles() {
+      if (hazeRef.current) {
+        hazeRef.current.forEach((sphere, i) => {
+          sphere.position.add(velocities[i]);
+
+          // Boundary check: bounce back if the sphere reaches scene bounds
+          if (Math.abs(sphere.position.x) > 10) velocities[i].x = -velocities[i].x;
+          if (Math.abs(sphere.position.y) > 10) velocities[i].y = -velocities[i].y;
+          if (Math.abs(sphere.position.z) > 10) velocities[i].z = -velocities[i].z;
+        });
+      }
+    }
+
+    function updateAnimationTime(elapsedTime: number) {
+      uniformsRef.current.u_time.value = elapsedTime;
+    }
+
     function animate() {
       const elapsedTime = clock.getElapsedTime();
 
-      // Ensure audioRef and audioContext are defined before accessing them
-      if (audioRef?.current && audioContext?.current) {
-        // Use the audio data if available
-        if (!analyserRef.current && audioContext.current && audioRef.current) {
-          const analyser = audioContext.current.createAnalyser();
-          analyser.fftSize = 256;
-          const source = audioContext.current.createMediaElementSource(audioRef.current);
-          source.connect(analyser);
-          source.connect(audioContext.current.destination);
-          analyserRef.current = analyser;
-          dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-        }
-
-        if (analyserRef.current && dataArrayRef.current) {
-          analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-          const avgFrequency = dataArrayRef.current.reduce((sum, val) => sum + val, 0) / dataArrayRef.current.length;
-          uniformsRef.current.u_frequency.value = avgFrequency;
-        }
+      if (analyserRef.current && dataArrayRef.current && !isCurrentTrackAvailableRef.current) {
+        // If frequency data is available, use frequency-based animation
+        updateFrequencyData();
+      } else if (isCurrentTrackAvailableRef.current) {
+        // If no frequency data but there is a current track, use beat-based animation
+        handleBeatAnimation(elapsedTime);
       } else {
-        // Use beat-based animation as fallback
-        if (elapsedTime - lastBeatTime >= beatInterval) {
-          lastBeatTime = elapsedTime;
-          uniformsRef.current.u_frequency.value = Math.random() * 50 + 50;
-          uniformsRef.current.u_frequency.value *= audioFeatures.energy * 2;
-        }
+        // Default to base frequency if no current track or analyser
+        uniformsRef.current.u_frequency.value = baseFrequency;
       }
 
-      // Rotate the particle system for the haze effect
-      hazeParticlesMesh.rotation.y += 0.001;
+      // Move the haze particles
+      moveHazeParticles();
 
-      // Update uniforms for continuous animation
-      uniformsRef.current.u_time.value = elapsedTime;
+      // Update the animation time
+      updateAnimationTime(elapsedTime);
 
       // Render the scene
       bloomComposer.render();
       requestAnimationFrame(animate);
     }
+
     animate();
 
     // Handle Resize
@@ -203,13 +289,19 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
     rendererRef.current = renderer;
 
     return () => {
-      renderer.dispose();
-      if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
+      // Cleanup logic to stop animations and dispose of the renderer
       window.removeEventListener('resize', onResize);
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+      if (mountRef.current && rendererRef.current) {
+        mountRef.current.removeChild(rendererRef.current.domElement);
+      }
+      sceneRef.current = null;
+      rendererRef.current = null;
     };
-  }, [audioRef, isPlaying, audioContext, visColors]);
+  }, [audioRef, isPlaying, audioContext, visColors, isCurrentTrackAvailable]);
 
-  // Update colors smoothly whenever `visColors` changes
   useEffect(() => {
     if (sceneRef.current) {
       const { primary } = visColors;
@@ -244,9 +336,15 @@ const Visualizer: React.FC<VisualizerProps> = ({ audioRef, audioContext, isPlayi
       requestAnimationFrame(smoothTransition);
     }
 
-    if (hazeMaterialRef.current) {
+    if (hazeRef.current) {
       const { secondary } = visColors;
-      hazeMaterialRef.current.color = new THREE.Color(secondary.r, secondary.g, secondary.b);
+      hazeRef.current.forEach((sphere) => {
+        sphere.material.color = new THREE.Color(
+          secondary.r + 0.1,
+          secondary.g + 0.1,
+          secondary.b + 0.1
+        );
+      });
     }
   }, [visColors]);
 

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getOpenAiText } from './AudioAnalysis/OpenAi';
 import { getRandomNumberRange, pickRandomNSongs } from './utils/utils';
+import { clusterSongs } from "./AudioAnalysis/clusterSongs";
 
 // Update the base URL to point to your backend server
 const backendBaseURL = "http://localhost:5000"; // Update to match your backend server's URL
@@ -59,21 +60,29 @@ export const fetchTopTracks = async (): Promise<string[]> => {
 };
 
 export const fetchRecommendations = async (topTracks: any) => {
-    let randomRes = pickRandomNSongs(5, topTracks)
-    randomRes = randomRes.map((track: { id: string }) => track.id)
-    const nTracks = getRandomNumberRange(4,7)
-    const urilink = `recommendations?limit=${nTracks}&seed_tracks=${randomRes}`
+  let clusters
+  try{
+    const res = await fetchAudioFeatures(topTracks)
+    console.log('top tracks with features ', res)
+    clusters = clusterSongs(res, 10)
+    console.log(clusters)
+  } 
+  catch(error) {
+    clusters = pickRandomNSongs(5, topTracks)
+    clusters = clusters.map((track: { id: string }) => track.id)
+  }
+    const nTracks = getRandomNumberRange(5,7)
+    const urilink = `recommendations?limit=${nTracks}&seed_tracks=${clusters}`
     try{
       const res = await apiClient.get(urilink);
       const tracks = res.data.tracks;
-      console.log(tracks)
+      // console.log(tracks)
       return tracks;
     } catch (error) {
       console.error(error)
       console.log(error)
     }
-    
-};
+  }
 
 export const fetchAudioFeatures = async (songList: any) => {
   try {
@@ -89,6 +98,7 @@ export const fetchAudioFeatures = async (songList: any) => {
       return {
         ...song,
         audioFeatures: audioFeatures[index],
+        // genre: song.map(song => s)
       };
     });
 

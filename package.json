@@ -20,6 +20,7 @@
     "axios": "^1.7.7",
     "dat.gui": "^0.7.9",
     "elevenlabs": "^0.18.0",
+    "ml-kmeans": "^6.0.0",
     "openai": "^4.71.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

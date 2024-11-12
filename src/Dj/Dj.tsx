@@ -19,51 +19,52 @@ const Dj = ({ token, setToken }: DjInterface) => {
   });
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isSessionStarted, setIsSessionStarted] = useState(false); // User-triggered session start
+  const [isSessionStarted, setIsSessionStarted] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
+
   const [isTtsPlaying, setIsTtsPlaying] = useState(true);
   const [isTtsStarted, setIsTtsStarted] = useState(false);
   const [scripts, setScripts] = useState('');
-  const [currentTrack, setCurrentTrack] = useState({
-    name: '',
-    artist: '',
-    albumArt: '',
-    audioFeatures: { tempo: 120, energy: 0.5 },
-  });
+  const [currentTrack, setCurrentTrack] = useState<{
+    name: string;
+    artist: string;
+    albumArt: string;
+    audioFeatures: { tempo: number; energy: number };
+  } | null>(null);
+  
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContext = useRef<AudioContext | null>(null);
 
   const fetchData = async () => {
     try {
       setIsTtsStarted(false);
       setIsTtsPlaying(true);
-      // Clear existing recommendations
       setTracksData((prev) => ({
         ...prev,
         recommendations: [],
       }));
 
       const topTracks = await fetchTopTracks();
-      let tracks
-      //if rate limited use top tracks
-      try{
-        const recs = await fetchRecommendations(topTracks)
+      let tracks;
+      try {
+        const recs = await fetchRecommendations(topTracks);
         tracks = await fetchAudioFeatures(recs);
       } catch (error) {
-        console.error(error)
+        console.error(error);
         tracks = await fetchAudioFeatures(topTracks);
         tracks = pickRandomNSongs(6, tracks);
       }
-      console.log(tracks);
+
       setTracksData({
         topTracks,
         allSongs: [],
         recommendations: [...tracks],
       });
-
-      const test = 'This is a test';
-      const djScript = await getOpenAiText(tracks)
-      const djVoice = await generateTextToSpeech(djScript); // Generate TTS audio URL
-      const addNew = scripts + `/n ${test}`;
-      setScripts(addNew);
+      const test = 'this is a test'
+      const djScript = await getOpenAiText(tracks);
+      const djVoice = await generateTextToSpeech(djScript);
+    //   setScripts((prevScripts) => `${prevScripts}\n${djScript}`);
+      
       if (audioRef.current) {
         audioRef.current.src = djVoice;
         audioRef.current.play().catch((error) => {
@@ -81,7 +82,6 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
   useEffect(() => {
     const handleAudioStart = () => {
-      console.log('Audio started playing');
       setIsTtsStarted(true);
     };
 
@@ -90,7 +90,6 @@ const Dj = ({ token, setToken }: DjInterface) => {
     };
 
     if (audioRef.current) {
-      // Add event listeners for play and ended events
       audioRef.current.addEventListener('play', handleAudioStart);
       audioRef.current.addEventListener('ended', handleAudioEnd);
     }
@@ -103,29 +102,54 @@ const Dj = ({ token, setToken }: DjInterface) => {
   }, []);
 
   const handleEndOfPlaylist = () => {
-    fetchData(); // Re-fetch new recommendations and clear the current playlist
+    fetchData();
     setCurrentTrackIndex(0);
     setIsPlaying(false);
   };
 
-  const handleTrackChange = (nextIndex: number) => {
-    setCurrentTrackIndex(nextIndex);
-    setIsPlaying(true); // Automatically play the next track when changing tracks
-  };
-
-  const handlePlayPauseToggle = () => {
-    setIsPlaying((prev) => !prev);
-  };
-
   const handleStartSession = () => {
     setIsSessionStarted(true);
+    setShowVisualizer(true);
+    audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
   };
+  
 
   const handleLogout = () => {
     setToken('');
     window.localStorage.clear();
-  };
 
+    // Unmount the visualizer
+  setShowVisualizer(false);
+
+     // Stop any ongoing playback from audioRef
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.src = ''; // Clear the source
+  }
+
+  // Close the audio context if it exists
+  if (audioContext.current) {
+    audioContext.current.close().then(() => {
+      audioContext.current = null;
+    }).catch((error) => {
+      console.error('Error closing audio context:', error);
+    });
+  }
+
+  // Reset the state variables to their initial state
+  setIsPlaying(false);
+  setIsSessionStarted(false);
+  setIsTtsPlaying(false);
+  setIsTtsStarted(false);
+  setCurrentTrack(null);
+  setTracksData({
+    topTracks: [],
+    allSongs: [],
+    recommendations: [],
+  });
+
+  console.log('User logged out, resources cleaned up.');
+};
   return (
     <div className="flex flex-col align-center">
       <nav className="flex flex-row p-5 align-center justify-end fixed top-0 left-0 w-full">
@@ -134,7 +158,6 @@ const Dj = ({ token, setToken }: DjInterface) => {
         </button>
       </nav>
 
-      {/* Start Session Button */}
       {!isSessionStarted && (
         <div className="flex flex-col items-center justify-center h-screen">
           <button className="start-button bg-black bg-opacity-50" onClick={handleStartSession}>
@@ -150,15 +173,16 @@ const Dj = ({ token, setToken }: DjInterface) => {
       <audio ref={audioRef} style={{ display: 'none' }} />
 
       {/* Visualizer Component */}
-      {currentTrack.name && !isTtsPlaying ? (
+      {showVisualizer && (
         <Visualizer
-          isPlaying={isPlaying}
-          albumImageUrl={currentTrack.albumArt || null}
-          audioFeatures={currentTrack.audioFeatures}
+            audioRef={audioRef}
+            audioContext={audioContext}
+            isPlaying={isPlaying}
+            albumImageUrl={currentTrack?.albumArt || null}
+            audioFeatures={currentTrack?.audioFeatures || { tempo: 120, energy: 0.5 }}
+            isCurrentTrackAvailable={!!currentTrack}
         />
-      ) : (
-        <Visualizer isPlaying={false} albumImageUrl={null} audioFeatures={{ tempo: 30, energy: 1 }} />
-      )}
+        )}
 
       {/* Spotify Player Component */}
       {tracksData.recommendations.length > 0 && isSessionStarted && !isTtsPlaying && (
@@ -166,15 +190,14 @@ const Dj = ({ token, setToken }: DjInterface) => {
           token={token}
           uris={tracksData.recommendations.map((track) => track.uri)}
           callback={(trackInfo) => {
-            // Update the track information in the DJ component
             setCurrentTrack({
               name: trackInfo.name,
               artist: trackInfo.artist,
               albumArt: trackInfo.albumArt,
-              audioFeatures: trackInfo.audioFeatures || { tempo: 120, energy: 0.5 },
+              audioFeatures: trackInfo.audioFeatures || { tempo: 0, energy: 0.1 },
             });
           }}
-          onEnd={handleEndOfPlaylist} // Fetch new data when the last track ends
+          onEnd={handleEndOfPlaylist}
         />
       )}
     </div>
