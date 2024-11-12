@@ -4,7 +4,7 @@ export const generateTextToSpeech = async (text) => {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'xi-api-key': import.meta.env.ELEVEN_LABS_API_KEY
+                'xi-api-key': process.env.ELEVEN_LABS_API_KEY
              },
             body: JSON.stringify({ text }),
         });

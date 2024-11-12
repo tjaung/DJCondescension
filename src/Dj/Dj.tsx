@@ -23,8 +23,8 @@ const Dj = ({ token, setToken }: DjInterface) => {
   const [showVisualizer, setShowVisualizer] = useState(false);
 
   const [isTtsPlaying, setIsTtsPlaying] = useState(true);
-  const [isTtsStarted, setIsTtsStarted] = useState(false);
-  const [scripts, setScripts] = useState('');
+  const [isTtsStarted, setIsTtsStarted] = useState(true);
+  // const [scripts, setScripts] = useState('');
   const [currentTrack, setCurrentTrack] = useState<{
     name: string;
     artist: string;
