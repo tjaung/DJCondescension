@@ -15,9 +15,10 @@ If you want to run **DJ Condescension** locally:
 ### Prerequisites
 - Node.js (v16+)
 - npm (v7+) or Yarn
-- Spotify Premium Account
-- Open AI api key
-- Eleven Labs api key
+- [Spotify Premium Account](https://www.spotify.com/us/premium/)
+- [Open AI api key](https://openai.com/index/openai-api/)
+- [Eleven Labs api key](https://elevenlabs.io/docs/product/introduction)
+- [Server Repo](https://github.com/tjaung/DJCondescension_server/tree/main)
 
 ### Installation
 1. Clone the repository:
