@@ -23,7 +23,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
   const [showVisualizer, setShowVisualizer] = useState(false);
 
   const [isTtsPlaying, setIsTtsPlaying] = useState(true);
-  const [isTtsStarted, setIsTtsStarted] = useState(true);
+  const [isTtsStarted, setIsTtsStarted] = useState(false); // Initially set to false to show "Analyzing..."
   const [scripts, setScripts] = useState('');
   const [currentTrack, setCurrentTrack] = useState<{
     name: string;
@@ -37,7 +37,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
   const fetchData = async () => {
     try {
-      setIsTtsStarted(false);
+      setIsTtsStarted(false); // Start analysis, show "Analyzing..."
       setIsTtsPlaying(true);
       setTracksData((prev) => ({
         ...prev,
@@ -54,19 +54,18 @@ const Dj = ({ token, setToken }: DjInterface) => {
         tracks = await fetchAudioFeatures(topTracks);
         tracks = pickRandomNSongs(6, tracks);
       }
-      // console.log(tracks.map(track => track.name))
+      
       setTracksData({
         topTracks,
         allSongs: [],
         recommendations: [...tracks],
       });
-      const test = 'this is a test'
       const djScript = await getOpenAiText(tracks);
       const djVoice = await generateTextToSpeech(djScript);
-    //   setScripts((prevScripts) => `${prevScripts}\n${djScript}`);
       
       if (audioRef.current) {
         audioRef.current.src = djVoice;
+        // Play audio only after user interaction
         audioRef.current.play().catch((error) => {
           console.error('Error playing audio:', error);
         });
@@ -82,20 +81,22 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
   useEffect(() => {
     const handleAudioStart = () => {
-      setIsTtsStarted(true);
+      setIsTtsStarted(true); // Audio started, hide "Analyzing..."
+      console.log('audio start')
     };
 
     const handleAudioEnd = () => {
       setIsTtsPlaying(false);
+      console.log('audio end')
     };
 
     if (audioRef.current) {
-      audioRef.current.addEventListener('play', handleAudioStart);
+      audioRef.current.addEventListener('playing', handleAudioStart); // Updated event listener to 'playing'
       audioRef.current.addEventListener('ended', handleAudioEnd);
     }
     return () => {
       if (audioRef.current) {
-        audioRef.current.removeEventListener('play', handleAudioStart);
+        audioRef.current.removeEventListener('playing', handleAudioStart); // Updated event listener to 'playing'
         audioRef.current.removeEventListener('ended', handleAudioEnd);
       }
     };
@@ -108,48 +109,57 @@ const Dj = ({ token, setToken }: DjInterface) => {
   };
 
   const handleStartSession = () => {
+    // Ensure AudioContext is resumed upon user interaction
+    if (!audioContext.current) {
+      audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } else if (audioContext.current.state === 'suspended') {
+      // Resume the AudioContext if it is suspended (Safari often suspends it by default)
+      audioContext.current.resume().catch((error) => {
+        console.error('Error resuming audio context:', error);
+      });
+    }
+
     setIsSessionStarted(true);
     setShowVisualizer(true);
-    audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
   };
-  
 
   const handleLogout = () => {
     setToken('');
     window.localStorage.clear();
 
     // Unmount the visualizer
-  setShowVisualizer(false);
+    setShowVisualizer(false);
 
-     // Stop any ongoing playback from audioRef
-  if (audioRef.current) {
-    audioRef.current.pause();
-    audioRef.current.src = ''; // Clear the source
-  }
+    // Stop any ongoing playback from audioRef
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = ''; // Clear the source
+    }
 
-  // Close the audio context if it exists
-  if (audioContext.current) {
-    audioContext.current.close().then(() => {
-      audioContext.current = null;
-    }).catch((error) => {
-      console.error('Error closing audio context:', error);
+    // Close the audio context if it exists
+    if (audioContext.current) {
+      audioContext.current.close().then(() => {
+        audioContext.current = null;
+      }).catch((error) => {
+        console.error('Error closing audio context:', error);
+      });
+    }
+
+    // Reset the state variables to their initial state
+    setIsPlaying(false);
+    setIsSessionStarted(false);
+    setIsTtsPlaying(false);
+    setIsTtsStarted(false);
+    setCurrentTrack(null);
+    setTracksData({
+      topTracks: [],
+      allSongs: [],
+      recommendations: [],
     });
-  }
 
-  // Reset the state variables to their initial state
-  setIsPlaying(false);
-  setIsSessionStarted(false);
-  setIsTtsPlaying(false);
-  setIsTtsStarted(false);
-  setCurrentTrack(null);
-  setTracksData({
-    topTracks: [],
-    allSongs: [],
-    recommendations: [],
-  });
+    console.log('User logged out, resources cleaned up.');
+  };
 
-  console.log('User logged out, resources cleaned up.');
-};
   return (
     <div className="flex flex-col align-center">
       <nav className="flex flex-row p-5 align-center justify-end fixed top-0 left-0 w-full">
@@ -160,29 +170,35 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
       {!isSessionStarted && (
         <div className="flex flex-col items-center justify-center h-screen">
-          <button className="start-button bg-black bg-opacity-50" onClick={handleStartSession}>
+          <button
+            className="start-button bg-black bg-opacity-50"
+            onClick={handleStartSession}
+          >
             Start DJ Session
           </button>
         </div>
       )}
-      {isTtsStarted === false && (
+      
+      {/* Analyzing Message */}
+      {!isTtsStarted && isSessionStarted && (
         <div className="start-button text-md px-2.5 py-5 rounded">
           <p className="bg-black bg-opacity-50">Analyzing...</p>
         </div>
       )}
+      
       <audio ref={audioRef} style={{ display: 'none' }} />
 
       {/* Visualizer Component */}
       {showVisualizer && (
         <Visualizer
-            audioRef={audioRef}
-            audioContext={audioContext}
-            isPlaying={isPlaying}
-            albumImageUrl={currentTrack?.albumArt || null}
-            audioFeatures={currentTrack?.audioFeatures || { tempo: 120, energy: 0.5 }}
-            isCurrentTrackAvailable={!!currentTrack}
+          audioRef={audioRef}
+          audioContext={audioContext}
+          isPlaying={isPlaying}
+          albumImageUrl={currentTrack?.albumArt || null}
+          audioFeatures={currentTrack?.audioFeatures || { tempo: 120, energy: 0.5 }}
+          isCurrentTrackAvailable={!!currentTrack}
         />
-        )}
+      )}
 
       {/* Spotify Player Component */}
       {tracksData.recommendations.length > 0 && isSessionStarted && !isTtsPlaying && (

@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 import { fragmentshader, vertexshader } from './shaders';
 import { getDominantColors } from '../utils/utils';
-
+import WebGL from 'three/examples/jsm/capabilities/WebGL';
 
 interface VisualizerProps {
   audioRef: React.RefObject<HTMLAudioElement>;
@@ -35,6 +35,19 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const bloomComposerRef = useRef<EffectComposer | null>(null);
   const hazeRef = useRef<THREE.Mesh[] | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+
+    // Check WebGL2 support
+    useEffect(() => {
+      console.log(WebGL.isWebGL2Available())
+      if (!WebGL.isWebGL2Available()) {
+        const warning = WebGL.getWebGL2ErrorMessage();
+        if (mountRef.current) {
+          mountRef.current.innerHTML = '';
+          mountRef.current.appendChild(warning);
+        }
+        return; // Stop execution if WebGL2 is not available
+      }
+    }, []);
 
   const [visColors, setVisColors] = useState({
     primary: { r: 0, g: 0, b: 0 },
