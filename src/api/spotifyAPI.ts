@@ -59,8 +59,17 @@ export const fetchTopTracks = async (): Promise<string[]> => {
     return res.data.items
 };
 
-export const fetchRecommendations = async (topTracks: any) => {
+export const fetchRecommendations = async (topTracks: any, isTest) => {
   let clusters
+  const nTracks = getRandomNumberRange(5,7)
+  const urilink = `recommendations?limit=${nTracks}&seed_tracks=`
+
+  if (isTest) {
+    const testUri = `${urilink}${topTracks.join(',')}`
+    const testRecs = await makeRecommendationsFetch(testUri)
+    return testRecs
+  }
+
   try{
     const res = await fetchAudioFeatures(topTracks)
     clusters = clusterSongs(res, 10)
@@ -70,18 +79,22 @@ export const fetchRecommendations = async (topTracks: any) => {
     clusters = pickRandomNSongs(5, topTracks)
     clusters = clusters.map((track: { id: string }) => track.id)
   }
-    const nTracks = getRandomNumberRange(5,7)
-    const urilink = `recommendations?limit=${nTracks}&seed_tracks=${clusters}`
-    try{
-      const res = await apiClient.get(urilink);
-      const tracks = res.data.tracks;
-      // console.log(tracks)
-      return tracks;
-    } catch (error) {
-      console.error(error)
-      console.log(error)
-    }
+  const recUri = `${urilink}${clusters}`
+  const recs = await makeRecommendationsFetch(recUri)
+  return recs
+}
+
+const makeRecommendationsFetch = async (urilink:string) => {
+  try{
+    const res = await apiClient.get(urilink);
+    const tracks = res.data.tracks;
+    // console.log(tracks)
+    return tracks;
+  } catch (error) {
+    console.error(error)
+    console.log(error)
   }
+}
 
 export const fetchAudioFeatures = async (songList: any) => {
   try {

@@ -23,7 +23,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
   const [showVisualizer, setShowVisualizer] = useState(false);
 
   const [isTtsPlaying, setIsTtsPlaying] = useState(true);
-  const [isTtsStarted, setIsTtsStarted] = useState(false); // Initially set to false to show "Analyzing..."
+  const [isTtsStarted, setIsTtsStarted] = useState(false);
   const [scripts, setScripts] = useState('');
   const [currentTrack, setCurrentTrack] = useState<{
     name: string;
@@ -31,12 +31,13 @@ const Dj = ({ token, setToken }: DjInterface) => {
     albumArt: string;
     audioFeatures: { tempo: number; energy: number };
   } | null>(null);
-  
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = async (isTest=false) => {
     try {
+      // refresh the states
       setIsTtsStarted(false); // Start analysis, show "Analyzing..."
       setIsTtsPlaying(true);
       setTracksData((prev) => ({
@@ -44,25 +45,45 @@ const Dj = ({ token, setToken }: DjInterface) => {
         recommendations: [],
       }));
 
-      const topTracks = await fetchTopTracks();
-      let tracks;
-      try {
-        const recs = await fetchRecommendations(topTracks);
+      // fetch user data
+      let topTracks: any
+      let recs: any
+      let tracks: any
+      if (isTest){ 
+        console.log('testing function')
+        // get mock data for testing
+        topTracks = ["5CCNOyJdEWDCVMRRIshNUL", "7KXjTSCq5nL1LoYtL7XAwS", "4Vfgc4BdSKM2hRlkaRFc9C", "0jcw8cJf3TNMZN0BXlueML"]
+        recs = await fetchRecommendations(topTracks, isTest);
+        console.log(recs)
         tracks = await fetchAudioFeatures(recs);
-      } catch (error) {
-        console.error(error);
-        tracks = await fetchAudioFeatures(topTracks);
         tracks = pickRandomNSongs(6, tracks);
+      } 
+      else { 
+        // production data
+        topTracks = await fetchTopTracks();
+        try {
+          recs = await fetchRecommendations(topTracks, false);
+          tracks = await fetchAudioFeatures(recs);
+        } catch (error) {
+          console.error(error);
+          tracks = await fetchAudioFeatures(topTracks);
+          tracks = pickRandomNSongs(6, tracks);
+        }
       }
+
+      console.log(tracks);
       
+      // update playlist
       setTracksData({
         topTracks,
         allSongs: [],
         recommendations: [...tracks],
       });
+
+      // get dj audio data
       const djScript = await getOpenAiText(tracks);
       const djVoice = await generateTextToSpeech(djScript);
-      
+
       if (audioRef.current) {
         audioRef.current.src = djVoice;
         // Play audio only after user interaction
@@ -75,28 +96,29 @@ const Dj = ({ token, setToken }: DjInterface) => {
     }
   };
 
-  useEffect(() => {
-    if (token && isSessionStarted) fetchData();
-  }, [token, isSessionStarted]);
+
+  // useEffect(() => {
+  //   if (token && isSessionStarted) fetchData(isTest);
+  // }, [token, isSessionStarted]);
 
   useEffect(() => {
     const handleAudioStart = () => {
       setIsTtsStarted(true); // Audio started, hide "Analyzing..."
-      console.log('audio start')
+      console.log('audio start');
     };
 
     const handleAudioEnd = () => {
       setIsTtsPlaying(false);
-      console.log('audio end')
+      console.log('audio end');
     };
 
     if (audioRef.current) {
-      audioRef.current.addEventListener('playing', handleAudioStart); // Updated event listener to 'playing'
+      audioRef.current.addEventListener('playing', handleAudioStart);
       audioRef.current.addEventListener('ended', handleAudioEnd);
     }
     return () => {
       if (audioRef.current) {
-        audioRef.current.removeEventListener('playing', handleAudioStart); // Updated event listener to 'playing'
+        audioRef.current.removeEventListener('playing', handleAudioStart);
         audioRef.current.removeEventListener('ended', handleAudioEnd);
       }
     };
@@ -121,6 +143,7 @@ const Dj = ({ token, setToken }: DjInterface) => {
 
     setIsSessionStarted(true);
     setShowVisualizer(true);
+    fetchData()
   };
 
   const handleLogout = () => {
@@ -160,6 +183,13 @@ const Dj = ({ token, setToken }: DjInterface) => {
     console.log('User logged out, resources cleaned up.');
   };
 
+  const handleTestApp = () => {
+    // For testing purposes, call fetchData directly
+    setIsSessionStarted(true);
+    setShowVisualizer(true);
+    fetchData(true);
+  };
+
   return (
     <div className="flex flex-col align-center">
       <nav className="flex flex-row p-5 align-center justify-end fixed top-0 left-0 w-full">
@@ -176,16 +206,22 @@ const Dj = ({ token, setToken }: DjInterface) => {
           >
             Start DJ Session
           </button>
+          <button
+            className="test-button bg-gray-800 text-white mt-4 px-4 py-2 rounded"
+            onClick={handleTestApp}
+          >
+            Test the App
+          </button>
         </div>
       )}
-      
+
       {/* Analyzing Message */}
       {!isTtsStarted && isSessionStarted && (
         <div className="start-button text-md px-2.5 py-5 rounded">
           <p className="bg-black bg-opacity-50">Analyzing...</p>
         </div>
       )}
-      
+
       <audio ref={audioRef} style={{ display: 'none' }} />
 
       {/* Visualizer Component */}
