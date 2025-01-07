@@ -45,7 +45,6 @@ const CustomSpotifyPlayer: React.FC<SpotifyPlayerProps> = ({ token, uris, callba
         play={play}
         initialVolume={50}
         showSaveIcon={true}
-        hideAttribution
         uris={[uris[currentTrackIndex]]}
         callback={(state) => {
           if (state.track && state.isPlaying) {
